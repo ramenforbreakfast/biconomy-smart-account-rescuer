@@ -1,25 +1,73 @@
-// Network config: chainId, public RPC, USDC contract, block explorer
+// Network config: chainId, public RPC, native symbol, common tokens, block explorer
 const NETWORKS = {
-  base:     { chainId: 8453,  name: 'Base',     rpc: 'https://mainnet.base.org',      usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', explorer: 'https://basescan.org/tx/' },
-  ethereum: { chainId: 1,     name: 'Ethereum', rpc: 'https://eth.llamarpc.com',       usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', explorer: 'https://etherscan.io/tx/' },
-  polygon:  { chainId: 137,   name: 'Polygon',  rpc: 'https://polygon-rpc.com',        usdc: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', explorer: 'https://polygonscan.com/tx/' },
-  optimism: { chainId: 10,    name: 'Optimism', rpc: 'https://mainnet.optimism.io',    usdc: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', explorer: 'https://optimistic.etherscan.io/tx/' },
-  arbitrum: { chainId: 42161, name: 'Arbitrum', rpc: 'https://arb1.arbitrum.io/rpc',   usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', explorer: 'https://arbiscan.io/tx/' },
+  base: {
+    chainId: 8453, name: 'Base', rpc: 'https://mainnet.base.org',
+    nativeSymbol: 'ETH', explorer: 'https://basescan.org/tx/',
+    tokens: [
+      { symbol: 'USDC',  address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6 },
+      { symbol: 'USDT',  address: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2', decimals: 6 },
+      { symbol: 'WETH',  address: '0x4200000000000000000000000000000000000006', decimals: 18 },
+      { symbol: 'DAI',   address: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb', decimals: 18 },
+      { symbol: 'cbBTC', address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf', decimals: 8 },
+    ],
+  },
+  ethereum: {
+    chainId: 1, name: 'Ethereum', rpc: 'https://eth.llamarpc.com',
+    nativeSymbol: 'ETH', explorer: 'https://etherscan.io/tx/',
+    tokens: [
+      { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 },
+      { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 },
+      { symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals: 18 },
+      { symbol: 'DAI',  address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18 },
+      { symbol: 'WBTC', address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', decimals: 8 },
+    ],
+  },
+  polygon: {
+    chainId: 137, name: 'Polygon', rpc: 'https://polygon-rpc.com',
+    nativeSymbol: 'POL', explorer: 'https://polygonscan.com/tx/',
+    tokens: [
+      { symbol: 'USDC',   address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', decimals: 6 },
+      { symbol: 'USDT',   address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6 },
+      { symbol: 'WETH',   address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', decimals: 18 },
+      { symbol: 'DAI',    address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', decimals: 18 },
+      { symbol: 'WBTC',   address: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6', decimals: 8 },
+      { symbol: 'WMATIC', address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', decimals: 18 },
+    ],
+  },
+  optimism: {
+    chainId: 10, name: 'Optimism', rpc: 'https://mainnet.optimism.io',
+    nativeSymbol: 'ETH', explorer: 'https://optimistic.etherscan.io/tx/',
+    tokens: [
+      { symbol: 'USDC', address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', decimals: 6 },
+      { symbol: 'USDT', address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58', decimals: 6 },
+      { symbol: 'WETH', address: '0x4200000000000000000000000000000000000006', decimals: 18 },
+      { symbol: 'DAI',  address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals: 18 },
+      { symbol: 'WBTC', address: '0x68f180fcCe6836688e9084f035309E29Bf0A2095', decimals: 8 },
+    ],
+  },
+  arbitrum: {
+    chainId: 42161, name: 'Arbitrum', rpc: 'https://arb1.arbitrum.io/rpc',
+    nativeSymbol: 'ETH', explorer: 'https://arbiscan.io/tx/',
+    tokens: [
+      { symbol: 'USDC', address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6 },
+      { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6 },
+      { symbol: 'WETH', address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals: 18 },
+      { symbol: 'DAI',  address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals: 18 },
+      { symbol: 'WBTC', address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', decimals: 8 },
+    ],
+  },
 };
 
 const EP_V6 = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
 const EIP1967_IMPL_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
 
-// Biconomy's ModuleManager uses Safe's sentinel-based linked list for modules
 const SENTINEL_MODULES = '0x0000000000000000000000000000000000000001';
 
-// ECDSAOwnershipRegistryModule — deployed at the same address across all chains via CREATE2
 const KNOWN_BICONOMY_MODULES = [
   '0x0000001c5b32F37F5beA87BDD5374eB2aC54eA8e',
   '0x000000Dd8eB18e2D809Ad83D9c1AB48C3DC7dd7A',
 ];
 
-// Known implementation addresses mapped to human-readable names
 const KNOWN_IMPLS = {
   '0x0000002512019dafb59528b82cb92d3c5d2423ac': 'Biconomy SmartAccount v2.0.0',
   '0x00000054a5e8b45bc2f37bd49e2fb7c3c19eb1bd': 'Biconomy SmartAccount v2.0.0 (alt)',
@@ -28,16 +76,24 @@ const KNOWN_IMPLS = {
 const ERC20_ABI = [
   'function balanceOf(address) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
 ];
 
 // Shared signer — set by either connectMetaMask() or loadKey().
-// Accepts both ethers.BrowserProvider signer and ethers.Wallet.
 let signer = null;
 let eoaAddress = null;
 let selectedNetwork = 'base';
-let currentBalance = null;
 
-// Populated by diagnoseAccount(); used to skip redundant on-chain lookups during withdraw.
+// Asset state
+let assetType = 'erc20';           // 'native' | 'erc20'
+let nativeBalance = null;          // bigint (wei)
+let checkedTokens = [];            // [{ address, symbol, decimals, rawBalance, formattedBalance }]
+let withdrawTokenDecimals = 18;
+let withdrawTokenSymbol = '';
+let tokenResolveTimer = null;
+
+// Populated by diagnoseAccount(); cached for withdraw.
 let diagData = {
   entryPoint: null,
   implAddress: null,
@@ -48,7 +104,16 @@ let diagData = {
   ecdsaModule: null,
 };
 
-// UI helpers
+// Ethers v6 batches all pending calls into one HTTP request by default.
+// Public RPCs (e.g. mainnet.base.org) cap batches at ~10 calls.
+// batchMaxCount: 5 keeps every outgoing batch well within that limit
+// while still sending calls in parallel.
+function makeRpc() {
+  const net = getNet();
+  return new ethers.JsonRpcProvider(net.rpc, undefined, { batchMaxCount: 5 });
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────────────
 
 function log(msg, color) {
   const el = document.getElementById('debugLog');
@@ -71,37 +136,34 @@ function selectNetwork(btn) {
   selectedNetwork = btn.getAttribute('data-net');
   document.querySelectorAll('.net-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+
+  // Update native symbol labels
+  const sym = getNet().nativeSymbol;
+  document.getElementById('assetNativeSymbol').textContent = sym;
+  if (assetType === 'native') document.getElementById('amtLabel').textContent = sym;
+
+  renderWithdrawPresets();
+
+  checkedTokens = [];
+  document.getElementById('tokenBalList').innerHTML = '';
   log('Network → ' + selectedNetwork);
 }
 
-function setMax() {
-  if (currentBalance) document.getElementById('amount').value = parseFloat(currentBalance);
+// ── Asset type toggle ────────────────────────────────────────────────────────
+
+function selectAssetType(type) {
+  assetType = type;
+  const net = getNet();
+  document.getElementById('assetBtnNative').classList.toggle('active', type === 'native');
+  document.getElementById('assetBtnErc20').classList.toggle('active', type === 'erc20');
+  document.getElementById('tokenField').style.display = type === 'erc20' ? 'block' : 'none';
+  document.getElementById('amtLabel').textContent = type === 'native' ? net.nativeSymbol : (withdrawTokenSymbol || 'tokens');
+  document.getElementById('withdrawBtn').textContent = type === 'native'
+    ? 'Withdraw ' + net.nativeSymbol
+    : 'Withdraw ' + (withdrawTokenSymbol || 'Token');
 }
 
-// Extract a checksummed address from a 32-byte storage slot value (right-aligned)
-function addrFromSlot(raw) {
-  if (!raw || raw === '0x' + '0'.repeat(64)) return null;
-  const addr = ethers.getAddress('0x' + raw.slice(-40));
-  return addr === ethers.ZeroAddress ? null : addr;
-}
-
-function diagRow(label, value, cls) {
-  return `<div class="diag-row"><span class="diag-label">${label}</span><span class="diag-val ${cls || ''}">${value}</span></div>`;
-}
-
-function setWalletConnected(address, label) {
-  eoaAddress = address;
-  document.getElementById('walletStatus').style.display = 'flex';
-  document.getElementById('walletStatus').className = 'wallet-status connected';
-  document.getElementById('connDot').className = 'dot on';
-  document.getElementById('connText').textContent = address.slice(0, 6) + '…' + address.slice(-4) + (label ? '  ·  ' + label : '');
-  document.getElementById('s1num').className = 'step-num done';
-  document.getElementById('s1num').textContent = '✓';
-  showAlert('connectAlert', 'alert-success', '✓ <code style="font-size:11px">' + address + '</code>');
-  log('Connected: ' + address, '#4ade80');
-}
-
-// Wallet connection — MetaMask
+// ── Wallet connection — MetaMask ─────────────────────────────────────────────
 
 async function connectMetaMask() {
   hideAlert('connectAlert');
@@ -121,7 +183,7 @@ async function connectMetaMask() {
   }
 }
 
-// Wallet connection — private key
+// ── Wallet connection — private key ─────────────────────────────────────────
 
 function loadKey() {
   hideAlert('connectAlert');
@@ -142,57 +204,336 @@ function loadKey() {
   }
 }
 
-// Balance check
+function setWalletConnected(address, label) {
+  eoaAddress = address;
+  document.getElementById('walletStatus').style.display = 'flex';
+  document.getElementById('walletStatus').className = 'wallet-status connected';
+  document.getElementById('connDot').className = 'dot on';
+  document.getElementById('connText').textContent = address.slice(0, 6) + '…' + address.slice(-4) + (label ? '  ·  ' + label : '');
+  document.getElementById('s1num').className = 'step-num done';
+  document.getElementById('s1num').textContent = '✓';
+  showAlert('connectAlert', 'alert-success', '✓ <code style="font-size:11px">' + address + '</code>');
+  log('Connected: ' + address, '#4ade80');
+}
+
+// ── Balance check — scans native + all known tokens in parallel ───────────────
 
 async function checkBalance() {
   const net = getNet();
   const sa = document.getElementById('smartAcct').value.trim();
   if (!ethers.isAddress(sa)) { showAlert('balanceAlert', 'alert-error', '❌ Invalid address.'); return; }
+
+  hideAlert('balanceAlert');
+
+  const btn = document.getElementById('checkBalBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="border-top-color:currentColor;"></span>Scanning…';
+
+  document.getElementById('balanceWrap').style.display = 'block';
+  const totalAssets = net.tokens.length + 1;
+  document.getElementById('assetList').innerHTML =
+    `<div class="scan-state">Scanning ${totalAssets} assets on ${net.name}…</div>`;
+
   try {
-    hideAlert('balanceAlert');
-    const rpc = new ethers.JsonRpcProvider(net.rpc);
-    const usdc = new ethers.Contract(net.usdc, ERC20_ABI, rpc);
-    const [raw, ethBal] = await Promise.all([usdc.balanceOf(sa), rpc.getBalance(sa)]);
+    const rpc = makeRpc();
 
-    currentBalance = ethers.formatUnits(raw, 6); // USDC is always 6 decimals
-    document.getElementById('balanceWrap').style.display = 'block';
-    document.getElementById('balanceAmt').textContent =
-      parseFloat(currentBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) + ' USDC';
+    log('RPC: ' + net.rpc);
+    log('Checking address: ' + sa);
 
-    document.getElementById('ethBalAmt').textContent =
-      parseFloat(ethers.formatEther(ethBal)).toFixed(6) + ' ETH';
+    const checks = [
+      rpc.getBalance(sa)
+        .then(bal => {
+          log(net.nativeSymbol + ': ' + ethers.formatEther(bal));
+          return { type: 'native', symbol: net.nativeSymbol, balance: bal, decimals: 18, address: null };
+        })
+        .catch(e => { log('✗ ' + net.nativeSymbol + ' (native): ' + e.message, '#ef4444'); return null; }),
+      ...net.tokens.map(tok => {
+        const contract = new ethers.Contract(tok.address, ERC20_ABI, rpc);
+        return contract.balanceOf(sa)
+          .then(bal => {
+            log(tok.symbol + ': ' + ethers.formatUnits(bal, tok.decimals));
+            return { type: 'erc20', symbol: tok.symbol, balance: bal, decimals: tok.decimals, address: tok.address };
+          })
+          .catch(e => { log('✗ ' + tok.symbol + ': ' + e.message, '#ef4444'); return null; });
+      }),
+    ];
 
+    const results = await Promise.all(checks);
+    const valid = results.filter(Boolean);
+    const nonZero = valid.filter(r => r.balance > 0n);
+
+    // Cache for MAX button / withdraw prefill
+    const nativeResult = valid.find(r => r.type === 'native');
+    nativeBalance = nativeResult?.balance ?? null;
+    checkedTokens = valid
+      .filter(r => r.type === 'erc20')
+      .map(r => ({
+        address: r.address,
+        symbol: r.symbol,
+        decimals: r.decimals,
+        rawBalance: r.balance,
+        formattedBalance: ethers.formatUnits(r.balance, r.decimals),
+      }));
+
+    // Gas status
     const MIN_ETH = ethers.parseEther('0.0005');
     const warnEl = document.getElementById('ethBalWarn');
-    if (ethBal === 0n) {
-      warnEl.textContent = '⚠ No ETH — fund this account before withdrawing';
+    if (!nativeBalance || nativeBalance === 0n) {
+      warnEl.textContent = '⚠ No ' + net.nativeSymbol + ' for gas — fund this account before withdrawing';
       warnEl.className = 'eth-warn bad';
-    } else if (ethBal < MIN_ETH) {
-      warnEl.textContent = '⚠ Low ETH — may not cover gas (need ~0.0005 ETH minimum)';
+    } else if (nativeBalance < MIN_ETH) {
+      warnEl.textContent = '⚠ Low ' + net.nativeSymbol + ' — may not cover gas (~0.0005 recommended)';
       warnEl.className = 'eth-warn warn';
     } else {
-      warnEl.textContent = '✓ Sufficient for gas';
+      warnEl.textContent = '✓ Sufficient ' + net.nativeSymbol + ' for gas';
       warnEl.className = 'eth-warn good';
     }
 
-    if (parseFloat(currentBalance) === 0) {
-      showAlert('balanceAlert', 'alert-warn', '⚠️ No USDC found on ' + net.name);
+    renderAssetList(nonZero);
+    renderWithdrawPresets();
+    document.getElementById('assetNativeSymbol').textContent = net.nativeSymbol;
+
+    document.getElementById('s2num').className = 'step-num done';
+    document.getElementById('s2num').textContent = '✓';
+    document.getElementById('withdrawBtn').disabled = false;
+
+    if (nonZero.length === 0) {
+      showAlert('balanceAlert', 'alert-warn', '⚠️ No assets found on ' + net.name + '. Check the network selection.');
+      showAlert('txAlert', 'alert-warn', '⚠️ No assets found — check network.');
     } else {
-      document.getElementById('s2num').className = 'step-num done';
-      document.getElementById('s2num').textContent = '✓';
-      document.getElementById('withdrawBtn').disabled = false;
-      showAlert('txAlert', 'alert-success', '✓ Found ' + parseFloat(currentBalance).toFixed(2) + ' USDC.');
+      showAlert('txAlert', 'alert-success', '✓ Found ' + nonZero.length + ' asset' + (nonZero.length !== 1 ? 's' : '') + '. Click Withdraw → on any asset to begin.');
     }
+
+    log('Scanned ' + totalAssets + ' assets on ' + net.name + ' — ' + nonZero.length + ' non-zero', '#4ade80');
+
+  } catch (e) {
+    document.getElementById('assetList').innerHTML = '';
+    showAlert('balanceAlert', 'alert-error', '❌ ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Check Balance';
+}
+
+function renderAssetList(assets) {
+  const list = document.getElementById('assetList');
+  if (assets.length === 0) {
+    list.innerHTML = '<div class="scan-state" style="color:var(--muted);">No assets with a balance found on this network.</div>';
+    return;
+  }
+  const net = getNet();
+  list.innerHTML = assets.map(a => {
+    const formatted = ethers.formatUnits(a.balance, a.decimals);
+    const display = parseFloat(formatted).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+    const subtext = a.type === 'native'
+      ? 'Native · ' + net.name
+      : a.address.slice(0, 10) + '…' + a.address.slice(-4);
+    const onClick = a.type === 'native'
+      ? `prefillWithdrawNative('${formatted}')`
+      : `prefillWithdraw('${a.address}','${a.symbol}',${a.decimals},'${formatted}')`;
+    return `<div class="asset-row">
+      <div class="asset-left">
+        <div class="asset-symbol">${a.symbol}</div>
+        <div class="asset-subtext">${subtext}</div>
+      </div>
+      <div class="asset-right">
+        <div class="asset-bal">${display}</div>
+        <button class="tok-withdraw-btn" onclick="${onClick}">Withdraw →</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Add a custom token the user pastes in — appends to the asset list if non-zero
+async function checkCustomToken() {
+  const sa = document.getElementById('smartAcct').value.trim();
+  if (!ethers.isAddress(sa)) { showAlert('balanceAlert', 'alert-error', '❌ Enter the smart account address first.'); return; }
+
+  const addr = document.getElementById('customTokenAddr').value.trim();
+  if (!ethers.isAddress(addr)) { showAlert('balanceAlert', 'alert-error', '❌ Invalid token address.'); return; }
+
+  const net = getNet();
+  const rpc = makeRpc();
+  try {
+    const token = new ethers.Contract(addr, ERC20_ABI, rpc);
+    const [symR, decR, balR] = await Promise.allSettled([token.symbol(), token.decimals(), token.balanceOf(sa)]);
+    const sym = symR.status === 'fulfilled' ? symR.value : addr.slice(0, 8) + '…';
+    const dec = decR.status === 'fulfilled' ? Number(decR.value) : 18;
+    const bal = balR.status === 'fulfilled' ? balR.value : 0n;
+    const formatted = ethers.formatUnits(bal, dec);
+
+    // Update cache
+    const idx = checkedTokens.findIndex(t => t.address.toLowerCase() === addr.toLowerCase());
+    const entry = { address: addr, symbol: sym, decimals: dec, rawBalance: bal, formattedBalance: formatted };
+    if (idx >= 0) checkedTokens[idx] = entry;
+    else checkedTokens.push(entry);
+
+    if (bal === 0n) {
+      showAlert('balanceAlert', 'alert-warn', '⚠️ ' + sym + ' balance is zero on this account.');
+    } else {
+      hideAlert('balanceAlert');
+      // Rebuild asset list with all current non-zero assets
+      const allAssets = [];
+      if (nativeBalance && nativeBalance > 0n)
+        allAssets.push({ type: 'native', symbol: net.nativeSymbol, balance: nativeBalance, decimals: 18, address: null });
+      for (const t of checkedTokens) {
+        if (t.rawBalance > 0n)
+          allAssets.push({ type: 'erc20', symbol: t.symbol, balance: t.rawBalance, decimals: t.decimals, address: t.address });
+      }
+      renderAssetList(allAssets);
+      document.getElementById('customTokenAddr').value = '';
+    }
+    log(sym + ': ' + parseFloat(formatted).toFixed(6), bal > 0n ? '#4ade80' : '#6b7280');
   } catch (e) {
     showAlert('balanceAlert', 'alert-error', '❌ ' + e.message);
   }
 }
 
-// Account diagnostics
-//
-// Inspects the proxy implementation, EntryPoint version, storage layout, enabled modules,
-// and registered owner. Results are displayed in the UI and cached in diagData for use
-// during withdrawal.
+// Quick-fill the withdraw form from an asset row
+function prefillWithdraw(address, symbol, decimals, balance) {
+  selectAssetType('erc20');
+  document.getElementById('withdrawTokenAddr').value = address;
+  withdrawTokenDecimals = decimals;
+  withdrawTokenSymbol = symbol;
+  document.getElementById('tokenResolveInfo').textContent = '✓ ' + symbol + ' · ' + decimals + ' decimals';
+  document.getElementById('amtLabel').textContent = symbol;
+  document.getElementById('withdrawBtn').textContent = 'Withdraw ' + symbol;
+  document.getElementById('amount').value = parseFloat(balance).toFixed(Math.min(decimals, 6));
+  document.getElementById('withdrawBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function prefillWithdrawNative(balance) {
+  const net = getNet();
+  selectAssetType('native');
+  // Reserve a small amount for gas
+  const reserve = 0.002;
+  const available = Math.max(0, parseFloat(balance) - reserve);
+  document.getElementById('amount').value = available.toFixed(6);
+  document.getElementById('withdrawBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ── Token presets in Step 3 ──────────────────────────────────────────────────
+
+function renderWithdrawPresets() {
+  const net = getNet();
+  const container = document.getElementById('withdrawPresets');
+  container.innerHTML = '';
+  for (const tok of net.tokens) {
+    const btn = document.createElement('button');
+    btn.className = 'tok-btn';
+    btn.textContent = tok.symbol;
+    btn.onclick = () => {
+      document.getElementById('withdrawTokenAddr').value = tok.address;
+      withdrawTokenDecimals = tok.decimals;
+      withdrawTokenSymbol = tok.symbol;
+      document.getElementById('tokenResolveInfo').textContent = '✓ ' + tok.symbol + ' · ' + tok.decimals + ' decimals';
+      document.getElementById('amtLabel').textContent = tok.symbol;
+      document.getElementById('withdrawBtn').textContent = 'Withdraw ' + tok.symbol;
+    };
+    container.appendChild(btn);
+  }
+}
+
+// Debounced auto-resolve when user types a custom token address in Step 3
+function scheduleTokenResolve() {
+  clearTimeout(tokenResolveTimer);
+  tokenResolveTimer = setTimeout(resolveWithdrawToken, 600);
+}
+
+async function resolveWithdrawToken() {
+  const addr = document.getElementById('withdrawTokenAddr').value.trim();
+  const infoEl = document.getElementById('tokenResolveInfo');
+  if (!ethers.isAddress(addr)) { infoEl.textContent = ''; return; }
+
+  // Check against already-fetched token presets first
+  const net = getNet();
+  const preset = net.tokens.find(t => t.address.toLowerCase() === addr.toLowerCase());
+  if (preset) {
+    withdrawTokenDecimals = preset.decimals;
+    withdrawTokenSymbol = preset.symbol;
+    infoEl.textContent = '✓ ' + preset.symbol + ' · ' + preset.decimals + ' decimals';
+    document.getElementById('amtLabel').textContent = preset.symbol;
+    document.getElementById('withdrawBtn').textContent = 'Withdraw ' + preset.symbol;
+    return;
+  }
+
+  // Also check already checked tokens cache
+  const cached = checkedTokens.find(t => t.address.toLowerCase() === addr.toLowerCase());
+  if (cached) {
+    withdrawTokenDecimals = cached.decimals;
+    withdrawTokenSymbol = cached.symbol;
+    infoEl.textContent = '✓ ' + cached.symbol + ' · ' + cached.decimals + ' decimals';
+    document.getElementById('amtLabel').textContent = cached.symbol;
+    document.getElementById('withdrawBtn').textContent = 'Withdraw ' + cached.symbol;
+    return;
+  }
+
+  infoEl.textContent = 'Resolving…';
+  try {
+    const rpc = makeRpc();
+    const token = new ethers.Contract(addr, ERC20_ABI, rpc);
+    const [symR, decR] = await Promise.allSettled([token.symbol(), token.decimals()]);
+    const sym = symR.status === 'fulfilled' ? symR.value : '???';
+    const dec = decR.status === 'fulfilled' ? Number(decR.value) : 18;
+    withdrawTokenDecimals = dec;
+    withdrawTokenSymbol = sym;
+    infoEl.textContent = '✓ ' + sym + ' · ' + dec + ' decimals';
+    document.getElementById('amtLabel').textContent = sym;
+    document.getElementById('withdrawBtn').textContent = 'Withdraw ' + sym;
+  } catch (e) {
+    infoEl.textContent = '⚠ Could not resolve — check address and network';
+  }
+}
+
+// ── MAX button ───────────────────────────────────────────────────────────────
+
+async function setMax() {
+  const sa = document.getElementById('smartAcct').value.trim();
+  if (!ethers.isAddress(sa)) return;
+
+  if (assetType === 'native') {
+    if (nativeBalance === null) return;
+    // Reserve ~0.002 ETH for gas
+    const reserve = ethers.parseEther('0.002');
+    const available = nativeBalance > reserve ? nativeBalance - reserve : 0n;
+    document.getElementById('amount').value = ethers.formatEther(available);
+  } else {
+    const tokenAddr = document.getElementById('withdrawTokenAddr').value.trim();
+    if (!ethers.isAddress(tokenAddr)) return;
+
+    // Try cache first
+    const cached = checkedTokens.find(t => t.address.toLowerCase() === tokenAddr.toLowerCase());
+    if (cached) {
+      document.getElementById('amount').value = parseFloat(cached.formattedBalance).toFixed(Math.min(cached.decimals, 6));
+      return;
+    }
+
+    // Fetch live
+    try {
+      const net = getNet();
+      const rpc = makeRpc();
+      const token = new ethers.Contract(tokenAddr, ERC20_ABI, rpc);
+      const raw = await token.balanceOf(sa);
+      document.getElementById('amount').value = ethers.formatUnits(raw, withdrawTokenDecimals);
+    } catch (e) {
+      log('Could not fetch token balance for MAX: ' + e.message, '#f59e0b');
+    }
+  }
+}
+
+// ── Storage helpers ──────────────────────────────────────────────────────────
+
+function addrFromSlot(raw) {
+  if (!raw || raw === '0x' + '0'.repeat(64)) return null;
+  const addr = ethers.getAddress('0x' + raw.slice(-40));
+  return addr === ethers.ZeroAddress ? null : addr;
+}
+
+function diagRow(label, value, cls) {
+  return `<div class="diag-row"><span class="diag-label">${label}</span><span class="diag-val ${cls || ''}">${value}</span></div>`;
+}
+
+// ── Account diagnostics ──────────────────────────────────────────────────────
 
 async function diagnoseAccount() {
   const net = getNet();
@@ -206,11 +547,10 @@ async function diagnoseAccount() {
   btn.disabled = true;
   btn.textContent = 'Diagnosing…';
 
-  const rpc = new ethers.JsonRpcProvider(net.rpc);
+  const rpc = makeRpc();
   let html = '';
 
   try {
-    // A. Contract
     html += '<div class="diag-section">A. CONTRACT</div>';
     const code = await rpc.getCode(sa);
     const codeBytes = (code.length - 2) / 2;
@@ -221,20 +561,11 @@ async function diagnoseAccount() {
     if (code === '0x') {
       html += diagRow('STATUS', 'NO CONTRACT — wrong address or network?', 'bad');
       diagEl.innerHTML = html;
-      btn.disabled = false;
-      btn.textContent = 'Diagnose Account';
+      btn.disabled = false; btn.textContent = 'Diagnose Account';
       return;
     }
 
-    // B. Proxy implementation
-    //
-    // Three proxy patterns are checked in order:
-    //   1. EIP-1967 (standard upgradeable proxy)
-    //   2. EIP-1167 / PUSH20 minimal proxy
-    //   3. "Self-slot" proxy used by Biconomy/ZeroDev: SLOAD(ADDRESS) —
-    //      the implementation address is stored at storage slot = uint256(address(this))
     html += '<div class="diag-section">B. PROXY IMPLEMENTATION</div>';
-
     const implSlotRaw = await rpc.getStorage(sa, EIP1967_IMPL_SLOT);
     html += diagRow('EIP-1967 slot raw', implSlotRaw);
     let implAddr = null;
@@ -270,7 +601,6 @@ async function diagnoseAccount() {
         }
       }
 
-      // Self-slot proxy: implementation stored at storage[address(this)]
       const selfSlot = ethers.zeroPadValue(sa.toLowerCase(), 32);
       const selfSlotRaw = await rpc.getStorage(sa, selfSlot);
       html += diagRow('Self-slot raw', selfSlotRaw);
@@ -287,14 +617,12 @@ async function diagnoseAccount() {
           const ic = await rpc.getCode(selfImpl);
           const iSize = (ic.length - 2) / 2;
           html += diagRow('  → Impl size', iSize + ' bytes', iSize > 0 ? 'warn' : 'bad');
-          html += diagRow('  → Lookup', 'basescan.org/address/' + selfImpl, 'warn');
         }
       } else {
         html += diagRow('  → Self-slot', 'empty', 'warn');
       }
     }
 
-    // C. EntryPoint
     html += '<div class="diag-section">C. ENTRYPOINT</div>';
     const entryPoint = EP_V6;
     try {
@@ -313,9 +641,8 @@ async function diagnoseAccount() {
     } catch (_) {}
 
     const ethBal = await rpc.getBalance(sa);
-    html += diagRow('ETH balance', ethers.formatEther(ethBal) + ' ETH', ethBal > 0n ? 'good' : 'bad');
+    html += diagRow('Native balance', ethers.formatEther(ethBal) + ' ' + net.nativeSymbol, ethBal > 0n ? 'good' : 'bad');
 
-    // D. Storage layout
     html += '<div class="diag-section">D. STORAGE</div>';
     const storageAddrs = [];
 
@@ -347,14 +674,11 @@ async function diagnoseAccount() {
       }
     }
 
-    // Sequential slots 0–5 (Biconomy's _modules mapping is at slot 0; older Kernels also used sequential layout)
     html += diagRow('— sequential 0–5 —', '');
     for (let i = 0; i < 6; i++) {
       await scanSlot('0x' + i.toString(16).padStart(64, '0'), 'seq[' + i + ']');
     }
 
-    // Walk Biconomy's module linked list: _modules[SENTINEL] → first module → next → …
-    // Slot for mapping entry: keccak256(abi.encode(key, mappingBaseSlot=0))
     html += diagRow('— Biconomy modules —', '');
     const abiC = ethers.AbiCoder.defaultAbiCoder();
     const biconEnabledModules = [];
@@ -387,9 +711,7 @@ async function diagnoseAccount() {
       html += diagRow('module lookup', e.message, 'bad');
     }
 
-    // E. Account function calls
     html += '<div class="diag-section">E. ACCOUNT CALLS</div>';
-
     try {
       const acct = new ethers.Contract(sa, ['function implementation() view returns (address)'], rpc);
       const imp = await acct.implementation();
@@ -397,33 +719,20 @@ async function diagnoseAccount() {
       if (!diagData.implAddress) diagData.implAddress = imp;
     } catch (_) {}
 
-    // F. Owner lookup
-    //
-    // Checks in priority order: modules found on-chain, known Biconomy modules,
-    // any contract addresses discovered from storage.
-    // Falls back to direct storage slot computation (keccak256 mapping keys)
-    // if function calls fail.
     html += '<div class="diag-section">F. OWNER LOOKUP</div>';
-
     const validatorsToCheck = [];
-    for (const m of biconEnabledModules) {
-      if (!validatorsToCheck.includes(m)) validatorsToCheck.push(m);
-    }
-    for (const m of KNOWN_BICONOMY_MODULES) {
-      if (!validatorsToCheck.includes(m)) validatorsToCheck.push(m);
-    }
-    for (const a of storageAddrs) {
-      if (!validatorsToCheck.includes(a)) validatorsToCheck.push(a);
-    }
+    for (const m of biconEnabledModules) if (!validatorsToCheck.includes(m)) validatorsToCheck.push(m);
+    for (const m of KNOWN_BICONOMY_MODULES) if (!validatorsToCheck.includes(m)) validatorsToCheck.push(m);
+    for (const a of storageAddrs) if (!validatorsToCheck.includes(a)) validatorsToCheck.push(a);
 
     html += diagRow('Candidates', validatorsToCheck.length + ' addresses');
 
     let confirmedOwner = null;
     const ownerFns = [
-      { sig: 'function getOwner(address) view returns (address)',                    name: 'getOwner' },
-      { sig: 'function smartAccountOwners(address) view returns (address)',          name: 'smartAccountOwners' },
-      { sig: 'function owner(address) view returns (address)',                       name: 'owner' },
-      { sig: 'function ecdsaValidatorStorage(address) view returns (address)',       name: 'ecdsaValidatorStorage' },
+      { sig: 'function getOwner(address) view returns (address)',                name: 'getOwner' },
+      { sig: 'function smartAccountOwners(address) view returns (address)',      name: 'smartAccountOwners' },
+      { sig: 'function owner(address) view returns (address)',                   name: 'owner' },
+      { sig: 'function ecdsaValidatorStorage(address) view returns (address)',   name: 'ecdsaValidatorStorage' },
     ];
 
     for (const vAddr of validatorsToCheck) {
@@ -447,9 +756,6 @@ async function diagnoseAccount() {
 
     if (!confirmedOwner) {
       html += diagRow('Function calls', 'failed — trying raw storage…', 'warn');
-
-      // Compute the Solidity mapping slot: keccak256(abi.encode(kernelAddr, mappingBaseSlot))
-      // The ECDSAOwnershipRegistryModule's smartAccountOwners mapping is typically at base slot 0.
       const abiCoder = ethers.AbiCoder.defaultAbiCoder();
       for (const vAddr of validatorsToCheck) {
         if (confirmedOwner) break;
@@ -480,7 +786,8 @@ async function diagnoseAccount() {
             if (maybeValidator && !validatorsToCheck.includes(maybeValidator)) {
               html += diagRow('  seq[' + i + '] addr', maybeValidator, 'warn');
               for (let base = 0; base <= 1; base++) {
-                const ownerSlot = ethers.keccak256(abiCoder.encode(['address', 'uint256'], [sa, base]));
+                const abiCoder2 = ethers.AbiCoder.defaultAbiCoder();
+                const ownerSlot = ethers.keccak256(abiCoder2.encode(['address', 'uint256'], [sa, base]));
                 const rawOwner = await rpc.getStorage(maybeValidator, ownerSlot);
                 const ownerAddr = addrFromSlot(rawOwner);
                 if (ownerAddr) {
@@ -496,9 +803,7 @@ async function diagnoseAccount() {
       }
     }
 
-    // G. Summary
     html += '<div class="diag-section">G. SUMMARY</div>';
-
     if (diagData.implAddress) html += diagRow('Implementation', diagData.implAddress, 'good');
     if (diagData.kernelVersion) html += diagRow('Account type', diagData.kernelVersion, 'good');
 
@@ -534,7 +839,7 @@ async function diagnoseAccount() {
   btn.textContent = 'Diagnose Account';
 }
 
-// Withdraw
+// ── Withdraw ─────────────────────────────────────────────────────────────────
 
 async function withdraw() {
   if (!signer) { showAlert('txAlert', 'alert-error', '❌ Connect a wallet first.'); return; }
@@ -547,19 +852,24 @@ async function withdraw() {
 
   if (!ethers.isAddress(smartAcct)) { showAlert('txAlert', 'alert-error', '❌ Invalid smart account address.'); return; }
   if (!ethers.isAddress(dest))      { showAlert('txAlert', 'alert-error', '❌ Invalid destination address.'); return; }
-  if (!amtStr || parseFloat(amtStr) <= 0) { showAlert('txAlert', 'alert-error', '❌ Enter an amount.'); return; }
+  if (!amtStr || parseFloat(amtStr) <= 0) { showAlert('txAlert', 'alert-error', '❌ Enter an amount greater than 0.'); return; }
   if (!bundlerUrl) { showAlert('txAlert', 'alert-error', '❌ Enter a bundler RPC URL.'); return; }
+
+  // ERC-20 specific validation
+  let tokenAddr = null;
+  if (assetType === 'erc20') {
+    tokenAddr = document.getElementById('withdrawTokenAddr').value.trim();
+    if (!ethers.isAddress(tokenAddr)) { showAlert('txAlert', 'alert-error', '❌ Enter a valid token contract address.'); return; }
+    if (!withdrawTokenSymbol) { showAlert('txAlert', 'alert-warn', '⚠️ Token not resolved yet. Enter address or pick a preset.'); return; }
+  }
 
   const btn = document.getElementById('withdrawBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Preparing…';
-  const rpcProvider = new ethers.JsonRpcProvider(net.rpc);
+  const rpcProvider = makeRpc();
 
-  // Biconomy SmartAccount v2 uses EntryPoint v0.6, which requires the /v1/ Pimlico endpoint
   function getBundlerUrl() {
-    return bundlerUrl.includes('pimlico.io')
-      ? bundlerUrl.replace('/v2/', '/v1/')
-      : bundlerUrl;
+    return bundlerUrl.includes('pimlico.io') ? bundlerUrl.replace('/v2/', '/v1/') : bundlerUrl;
   }
 
   async function bundlerRpc(method, params) {
@@ -579,24 +889,35 @@ async function withdraw() {
     const ethBal = await rpcProvider.getBalance(smartAcct);
     if (ethBal === 0n) {
       btn.disabled = false;
-      btn.textContent = 'Withdraw USDC';
-      showAlert('txAlert', 'alert-error', '❌ Smart account has no ETH for gas. Send a small amount first.');
+      btn.textContent = 'Withdraw ' + (assetType === 'native' ? net.nativeSymbol : withdrawTokenSymbol || 'Token');
+      showAlert('txAlert', 'alert-error', '❌ Smart account has no native token for gas. Send a small amount first.');
       return;
     }
     const code = await rpcProvider.getCode(smartAcct);
     if (code === '0x') throw new Error('No contract at this address.');
 
     const entryPoint = EP_V6;
-    log('Account type: Biconomy SmartAccount v2', '#4ade80');
     log('EntryPoint: v0.6');
 
     const epc = new ethers.Contract(entryPoint, ['function getNonce(address,uint192) view returns (uint256)'], rpcProvider);
     const nonce = await epc.getNonce(smartAcct, 0);
     log('Nonce: ' + nonce.toString());
 
-    const usdcIface = new ethers.Interface(ERC20_ABI);
-    const amountRaw = ethers.parseUnits(amtStr, 6);
-    const transferData = usdcIface.encodeFunctionData('transfer', [dest, amountRaw]);
+    // Build callData based on asset type
+    const executeIface = new ethers.Interface(['function execute(address dest, uint256 value, bytes calldata func)']);
+    let callData;
+
+    if (assetType === 'native') {
+      const amountWei = ethers.parseEther(amtStr);
+      callData = executeIface.encodeFunctionData('execute', [dest, amountWei, '0x']);
+      log('Native transfer: ' + amtStr + ' ' + net.nativeSymbol + ' → ' + dest);
+    } else {
+      const amountRaw = ethers.parseUnits(amtStr, withdrawTokenDecimals);
+      const erc20Iface = new ethers.Interface(ERC20_ABI);
+      const transferData = erc20Iface.encodeFunctionData('transfer', [dest, amountRaw]);
+      callData = executeIface.encodeFunctionData('execute', [tokenAddr, 0n, transferData]);
+      log('ERC-20 transfer: ' + amtStr + ' ' + withdrawTokenSymbol + ' → ' + dest);
+    }
 
     const feeData = await rpcProvider.getFeeData();
     const maxFeePerGas = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits('1', 'gwei');
@@ -605,9 +926,6 @@ async function withdraw() {
     let success = false;
     let userOpHashResult = null;
 
-    // Signature format: abi.encode(moduleSignature, moduleAddress)
-    // The account decodes this in validateUserOp and delegates to the specified module.
-    // The ECDSAOwnershipRegistryModule validates using ECDSA.toEthSignedMessageHash(userOpHash).
     btn.innerHTML = '<span class="spinner"></span>Building UserOp…';
     showAlert('txAlert', 'alert-info', '⏳ Preparing withdrawal…');
 
@@ -628,9 +946,6 @@ async function withdraw() {
       log('Using default module address: ' + ecdsaModule, '#f59e0b');
     }
     log('ECDSA module: ' + ecdsaModule);
-
-    const callData = new ethers.Interface(['function execute(address,uint256,bytes)'])
-      .encodeFunctionData('execute', [net.usdc, 0n, transferData]);
 
     const userOp = {
       sender: smartAcct,
@@ -659,9 +974,9 @@ async function withdraw() {
       if (est.preVerificationGas)   userOp.preVerificationGas   = est.preVerificationGas;
     } catch (e) {
       log('Gas estimate failed, using fixed limits: ' + e.message.slice(0, 80), '#f59e0b');
-      userOp.callGasLimit = '0x186A0';   // 100K — covers USDC transfer via Biconomy execute
-      userOp.verificationGasLimit = '0x30D40'; // 200K — covers ECDSAOwnershipRegistryModule
-      userOp.preVerificationGas = '0xC350';    // 50K
+      userOp.callGasLimit         = '0x186A0';
+      userOp.verificationGasLimit = '0x30D40';
+      userOp.preVerificationGas   = '0xC350';
     }
 
     userOp.signature = '0x';
@@ -714,7 +1029,6 @@ async function withdraw() {
       );
     }
 
-    // Poll for receipt
     log('Waiting for confirmation…');
     btn.innerHTML = '<span class="spinner"></span>Mining…';
     showAlert('txAlert', 'alert-info', '⏳ Waiting for transaction…');
@@ -739,15 +1053,24 @@ async function withdraw() {
     document.getElementById('txLink').textContent = txHash;
     document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
     showAlert('txAlert', 'alert-success', '✅ Withdrawal complete!');
-    btn.textContent = 'Withdraw USDC';
+
+    const withdrawLabel = assetType === 'native' ? net.nativeSymbol : (withdrawTokenSymbol || 'Token');
+    btn.textContent = 'Withdraw ' + withdrawLabel;
     btn.disabled = false;
-    currentBalance = null;
+
+    // Refresh balances
+    nativeBalance = null;
+    checkedTokens = [];
     checkBalance();
 
   } catch (e) {
     log('Error: ' + e.message, '#ef4444');
     btn.disabled = false;
-    btn.textContent = 'Withdraw USDC';
+    const withdrawLabel = assetType === 'native' ? net.nativeSymbol : (withdrawTokenSymbol || 'Token');
+    btn.textContent = 'Withdraw ' + withdrawLabel;
     showAlert('txAlert', 'alert-error', '❌ ' + e.message);
   }
 }
+
+// Initialise withdraw presets on load
+renderWithdrawPresets();

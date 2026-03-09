@@ -11,8 +11,8 @@
 
   <header>
     <div class="badge">Fund Recovery Tool</div>
-    <h1>Withdraw Your USDC</h1>
-    <p class="subtitle">Recover funds from your smart account.</p>
+    <h1>Recover Your Assets</h1>
+    <p class="subtitle">Withdraw any native token or ERC-20 from your Biconomy smart account.</p>
   </header>
 
   <!-- Step 1: Connect wallet -->
@@ -59,23 +59,21 @@
     </div>
 
     <div class="field" style="display:flex; gap:8px;">
-      <button class="btn btn-outline" onclick="checkBalance()" style="flex:1;">Check Balance</button>
+      <button class="btn btn-outline" id="checkBalBtn" onclick="checkBalance()" style="flex:1;">Check Balance</button>
       <button class="btn btn-diag"   onclick="diagnoseAccount()" id="diagBtn" style="flex:1;">Diagnose Account</button>
     </div>
 
-    <div id="balanceWrap" style="display:none; margin-top:10px;">
-      <div class="balance-row">
-        <div>
-          <div class="balance-label">USDC Balance</div>
-          <div class="balance-display" id="balanceAmt">&mdash;</div>
-        </div>
-        <div>
-          <div class="balance-label">ETH for Gas</div>
-          <div class="balance-display" id="ethBalAmt">&mdash;</div>
-        </div>
+    <div id="balanceWrap" style="display:none; margin-top:14px;">
+      <div id="assetList"></div>
+      <div id="ethBalWarn" class="eth-warn" style="margin-top:8px;"></div>
+
+      <!-- Custom token (edge case — add anything not in the preset list) -->
+      <div style="display:flex; gap:6px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+        <input id="customTokenAddr" type="text" placeholder="Add a custom token address 0x…" style="flex:1;" spellcheck="false" />
+        <button class="btn btn-outline" style="width:auto; padding:0 14px; font-size:12px; white-space:nowrap;" onclick="checkCustomToken()">+ Check</button>
       </div>
-      <div id="ethBalWarn" class="eth-warn"></div>
     </div>
+
     <div id="balanceAlert" class="alert"></div>
     <div id="diagResults" class="diag-results"></div>
   </div>
@@ -95,7 +93,7 @@
 
   <!-- Step 3: Withdraw -->
   <div class="card">
-    <div class="card-title"><div class="step-num" id="s3num">3</div> Withdraw USDC</div>
+    <div class="card-title"><div class="step-num" id="s3num">3</div> Withdraw Asset</div>
 
     <div class="field">
       <label>
@@ -112,10 +110,31 @@
       <input id="destAddr" type="text" placeholder="0x…" spellcheck="false" />
     </div>
 
+    <!-- Asset type selector -->
     <div class="field">
-      <label>Amount (USDC)</label>
+      <label>Asset Type</label>
+      <div style="display:flex; gap:6px;">
+        <button class="asset-btn" id="assetBtnNative" onclick="selectAssetType('native')">
+          Native&nbsp;(<span id="assetNativeSymbol">ETH</span>)
+        </button>
+        <button class="asset-btn active" id="assetBtnErc20" onclick="selectAssetType('erc20')">
+          ERC-20 Token
+        </button>
+      </div>
+    </div>
+
+    <!-- Token address — ERC-20 only -->
+    <div class="field" id="tokenField">
+      <label>Token Contract</label>
+      <div class="token-presets" id="withdrawPresets" style="margin-bottom:6px;"></div>
+      <input id="withdrawTokenAddr" type="text" placeholder="0x…" spellcheck="false" oninput="scheduleTokenResolve()" />
+      <div id="tokenResolveInfo" style="font-size:10px; color:var(--muted); margin-top:4px; font-family:'JetBrains Mono',monospace;"></div>
+    </div>
+
+    <div class="field">
+      <label>Amount (<span id="amtLabel">tokens</span>)</label>
       <div class="input-wrap">
-        <input id="amount" type="number" placeholder="0.00" min="0" step="0.01" />
+        <input id="amount" type="number" placeholder="0.00" min="0" step="any" />
         <span class="max-btn" onclick="setMax()">MAX</span>
       </div>
     </div>
@@ -123,7 +142,7 @@
     <div id="txAlert" class="alert alert-warn visible">⚠️ Connect your wallet and check the balance first.</div>
 
     <div style="margin-top:12px;">
-      <button class="btn btn-primary" id="withdrawBtn" onclick="withdraw()" disabled>Withdraw USDC</button>
+      <button class="btn btn-primary" id="withdrawBtn" onclick="withdraw()" disabled>Withdraw</button>
     </div>
   </div>
 

@@ -227,29 +227,9 @@ input:focus { border-color: var(--accent); }
   background: var(--border);
 }
 
-.balance-display {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--accent);
-  margin: 3px 0;
-}
-
-.balance-label {
-  font-size: 10px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.balance-row {
-  display: flex;
-  gap: 32px;
-}
-
 .eth-warn {
   font-size: 11px;
-  margin-top: 6px;
+  font-family: 'JetBrains Mono', monospace;
 }
 .eth-warn.bad  { color: #ef4444; }
 .eth-warn.warn { color: var(--warn); }
@@ -330,3 +310,110 @@ input:focus { border-color: var(--accent); }
   font-size: 10px;
   letter-spacing: 0.05em;
 }
+
+/* Asset list (Step 2) */
+
+.scan-state {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--blue);
+  padding: 8px 0;
+}
+
+.asset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.asset-row:last-child { border-bottom: none; }
+
+.asset-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.asset-symbol {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.asset-subtext {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.asset-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.asset-bal {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Token presets in Step 3 */
+
+.token-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tok-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tok-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.tok-withdraw-btn {
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.tok-withdraw-btn:hover { background: rgba(74, 222, 128, 0.2); }
+
+/* Asset type toggle (Step 3) */
+
+.asset-btn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.asset-btn:hover { border-color: var(--accent); color: var(--accent); }
+.asset-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
