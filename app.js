@@ -258,7 +258,11 @@ async function checkBalance() {
       }),
     ];
 
-    const results = await Promise.all(checks);
+    // Run balance checks and fee data fetch in parallel
+    const [results, feeData] = await Promise.all([
+      Promise.all(checks),
+      rpc.getFeeData().catch(() => null),
+    ]);
     const valid = results.filter(Boolean);
     const nonZero = valid.filter(r => r.balance > 0n);
 
@@ -275,17 +279,22 @@ async function checkBalance() {
         formattedBalance: ethers.formatUnits(r.balance, r.decimals),
       }));
 
-    // Gas status
-    const MIN_ETH = ethers.parseEther('0.0005');
+    // Compute realistic gas threshold from current fee data.
+    // ~350k gas units covers a typical Biconomy UserOp (100k call + 200k verify + 50k preVerify).
+    const GAS_UNITS = 350_000n;
+    const gasPrice = feeData?.maxFeePerGas ?? feeData?.gasPrice ?? ethers.parseUnits('1', 'gwei');
+    const minForGas = GAS_UNITS * gasPrice;
+    const minForGasEth = parseFloat(ethers.formatEther(minForGas)).toFixed(6);
+
     const warnEl = document.getElementById('ethBalWarn');
     if (!nativeBalance || nativeBalance === 0n) {
       warnEl.textContent = '⚠ No ' + net.nativeSymbol + ' for gas — fund this account before withdrawing';
       warnEl.className = 'eth-warn bad';
-    } else if (nativeBalance < MIN_ETH) {
-      warnEl.textContent = '⚠ Low ' + net.nativeSymbol + ' — may not cover gas (~0.0005 recommended)';
+    } else if (nativeBalance < minForGas) {
+      warnEl.textContent = '⚠ May not cover gas — have ' + parseFloat(ethers.formatEther(nativeBalance)).toFixed(6) + ', need ~' + minForGasEth + ' ' + net.nativeSymbol;
       warnEl.className = 'eth-warn warn';
     } else {
-      warnEl.textContent = '✓ Sufficient ' + net.nativeSymbol + ' for gas';
+      warnEl.textContent = '✓ Sufficient for gas (~' + minForGasEth + ' ' + net.nativeSymbol + ' estimated)';
       warnEl.className = 'eth-warn good';
     }
 
@@ -886,14 +895,18 @@ async function withdraw() {
   }
 
   try {
-    const ethBal = await rpcProvider.getBalance(smartAcct);
+    const [ethBal, feeData, code] = await Promise.all([
+      rpcProvider.getBalance(smartAcct),
+      rpcProvider.getFeeData(),
+      rpcProvider.getCode(smartAcct),
+    ]);
+
     if (ethBal === 0n) {
       btn.disabled = false;
       btn.textContent = 'Withdraw ' + (assetType === 'native' ? net.nativeSymbol : withdrawTokenSymbol || 'Token');
       showAlert('txAlert', 'alert-error', '❌ Smart account has no native token for gas. Send a small amount first.');
       return;
     }
-    const code = await rpcProvider.getCode(smartAcct);
     if (code === '0x') throw new Error('No contract at this address.');
 
     const entryPoint = EP_V6;
@@ -919,9 +932,8 @@ async function withdraw() {
       log('ERC-20 transfer: ' + amtStr + ' ' + withdrawTokenSymbol + ' → ' + dest);
     }
 
-    const feeData = await rpcProvider.getFeeData();
-    const maxFeePerGas = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits('1', 'gwei');
-    const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas || ethers.parseUnits('1', 'gwei');
+    const maxFeePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.parseUnits('1', 'gwei');
+    const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? ethers.parseUnits('1', 'gwei');
 
     let success = false;
     let userOpHashResult = null;
@@ -973,11 +985,34 @@ async function withdraw() {
       if (est.verificationGasLimit) userOp.verificationGasLimit = est.verificationGasLimit;
       if (est.preVerificationGas)   userOp.preVerificationGas   = est.preVerificationGas;
     } catch (e) {
-      log('Gas estimate failed, using fixed limits: ' + e.message.slice(0, 80), '#f59e0b');
+      log('Gas estimate failed: ' + e.message.slice(0, 120), '#f59e0b');
+      if (e.message.includes('AA21') || e.message.includes('prefund')) {
+        const requiredPrefund = 350_000n * maxFeePerGas;
+        throw new Error(
+          'Not enough ' + net.nativeSymbol + ' for gas (AA21). ' +
+          'Have ' + parseFloat(ethers.formatEther(ethBal)).toFixed(6) + ', ' +
+          'need ~' + parseFloat(ethers.formatEther(requiredPrefund)).toFixed(6) + ' ' + net.nativeSymbol + '.'
+        );
+      }
+      log('Using fixed gas limits', '#f59e0b');
       userOp.callGasLimit         = '0x186A0';
       userOp.verificationGasLimit = '0x30D40';
       userOp.preVerificationGas   = '0xC350';
     }
+
+    // Verify the account can actually pay the prefund before signing
+    const totalGasUnits = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas);
+    const requiredPrefund = totalGasUnits * maxFeePerGas;
+    if (ethBal < requiredPrefund) {
+      const shortfall = parseFloat(ethers.formatEther(requiredPrefund - ethBal)).toFixed(6);
+      throw new Error(
+        'Not enough ' + net.nativeSymbol + ' for gas. ' +
+        'Have ' + parseFloat(ethers.formatEther(ethBal)).toFixed(6) + ', ' +
+        'need ' + parseFloat(ethers.formatEther(requiredPrefund)).toFixed(6) + ' ' + net.nativeSymbol + '. ' +
+        'Send ' + shortfall + ' more ' + net.nativeSymbol + ' to the smart account.'
+      );
+    }
+    log('Prefund check: ' + parseFloat(ethers.formatEther(ethBal)).toFixed(6) + ' available, ' + parseFloat(ethers.formatEther(requiredPrefund)).toFixed(6) + ' required', '#4ade80');
 
     userOp.signature = '0x';
     const epHashContract = new ethers.Contract(entryPoint, [
@@ -996,6 +1031,8 @@ async function withdraw() {
       ...(rawSig ? [{ label: 'raw ECDSA + module', moduleSignature: rawSig }] : []),
     ];
 
+    let lastError = null;
+
     for (const sv of biconSigVariants) {
       if (success) break;
       userOp.signature = abiC2.encode(['bytes', 'address'], [sv.moduleSignature, ecdsaModule]);
@@ -1005,7 +1042,12 @@ async function withdraw() {
         log('✓ Accepted: ' + sv.label, '#4ade80');
         success = true;
       } catch (e) {
+        lastError = e;
         log('✗ ' + e.message.slice(0, 140), '#6b7280');
+
+        // AA21 = not enough ETH for gas — retrying with a different signature won't help
+        if (e.message.includes('AA21')) break;
+
         if (e.message.includes('AA23') || e.message.includes('signature')) {
           for (const altModule of KNOWN_BICONOMY_MODULES) {
             if (success || altModule === ecdsaModule) continue;
@@ -1016,6 +1058,7 @@ async function withdraw() {
               log('✓ Accepted with alternate module', '#4ade80');
               success = true;
             } catch (e2) {
+              lastError = e2;
               log('✗ ' + e2.message.slice(0, 100), '#6b7280');
             }
           }
@@ -1024,6 +1067,17 @@ async function withdraw() {
     }
 
     if (!success) {
+      const msg = lastError?.message || '';
+      if (msg.includes('AA21') || msg.includes('prefund')) {
+        throw new Error(
+          'Not enough ETH for gas (AA21). The smart account only has ' +
+          (nativeBalance ? parseFloat(ethers.formatEther(nativeBalance)).toFixed(6) : '0') +
+          ' ETH — send at least 0.001 ETH to it and try again.'
+        );
+      }
+      if (msg.includes('AA25') || msg.includes('nonce')) {
+        throw new Error('Nonce error (AA25) — the account nonce changed mid-operation. Please try again.');
+      }
       throw new Error(
         'Signature rejected (AA23). Run Diagnose Account to confirm your wallet matches the registered owner. Module: ' + ecdsaModule
       );
