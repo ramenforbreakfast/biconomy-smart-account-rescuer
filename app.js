@@ -113,6 +113,21 @@ function makeRpc() {
   return new ethers.JsonRpcProvider(net.rpc, undefined, { batchMaxCount: 5 });
 }
 
+// Retry an async call with exponential backoff + ±40% random jitter so
+// concurrent retries (e.g. 5 tokens all failing together) don't re-hammer
+// the RPC at the same millisecond.
+async function withRetry(fn, maxRetries = 3, baseDelayMs = 400) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt === maxRetries) throw e;
+      const jitter = 0.6 + Math.random() * 0.8; // 0.6–1.4×
+      await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(2, attempt) * jitter));
+    }
+  }
+}
+
 // ── UI helpers ──────────────────────────────────────────────────────────────
 
 function log(msg, color) {
@@ -218,11 +233,27 @@ function setWalletConnected(address, label) {
 
 // ── Balance check — scans native + all known tokens in parallel ───────────────
 
+let scanInProgress = false;
+let lastScanAt = 0;
+const SCAN_COOLDOWN_MS = 2000;
+
 async function checkBalance() {
   const net = getNet();
   const sa = document.getElementById('smartAcct').value.trim();
   if (!ethers.isAddress(sa)) { showAlert('balanceAlert', 'alert-error', '❌ Invalid address.'); return; }
 
+  // If already scanning, ignore the duplicate call entirely
+  if (scanInProgress) return;
+
+  // Silently wait out the remaining cooldown — no UI message, just a delay
+  const remaining = SCAN_COOLDOWN_MS - (Date.now() - lastScanAt);
+  if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
+
+  // Another scan may have started while we were waiting
+  if (scanInProgress) return;
+
+  scanInProgress = true;
+  lastScanAt = Date.now();
   hideAlert('balanceAlert');
 
   const btn = document.getElementById('checkBalBtn');
@@ -240,21 +271,27 @@ async function checkBalance() {
     log('RPC: ' + net.rpc);
     log('Checking address: ' + sa);
 
+    function fmtFetchErr(e) {
+      if (e.code === 'CALL_EXCEPTION') return 'contract call failed (skipped)';
+      if (e.code === 'BAD_DATA')       return 'bad RPC response (skipped)';
+      return e.message.slice(0, 80);
+    }
+
     const checks = [
-      rpc.getBalance(sa)
+      withRetry(() => rpc.getBalance(sa))
         .then(bal => {
           log(net.nativeSymbol + ': ' + ethers.formatEther(bal));
           return { type: 'native', symbol: net.nativeSymbol, balance: bal, decimals: 18, address: null };
         })
-        .catch(e => { log('✗ ' + net.nativeSymbol + ' (native): ' + e.message, '#ef4444'); return null; }),
+        .catch(e => { log('✗ ' + net.nativeSymbol + ': ' + fmtFetchErr(e), '#6b7280'); return null; }),
       ...net.tokens.map(tok => {
         const contract = new ethers.Contract(tok.address, ERC20_ABI, rpc);
-        return contract.balanceOf(sa)
+        return withRetry(() => contract.balanceOf(sa))
           .then(bal => {
             log(tok.symbol + ': ' + ethers.formatUnits(bal, tok.decimals));
             return { type: 'erc20', symbol: tok.symbol, balance: bal, decimals: tok.decimals, address: tok.address };
           })
-          .catch(e => { log('✗ ' + tok.symbol + ': ' + e.message, '#ef4444'); return null; });
+          .catch(e => { log('✗ ' + tok.symbol + ': ' + fmtFetchErr(e), '#6b7280'); return null; });
       }),
     ];
 
@@ -320,6 +357,7 @@ async function checkBalance() {
     showAlert('balanceAlert', 'alert-error', '❌ ' + e.message);
   }
 
+  scanInProgress = false;
   btn.disabled = false;
   btn.textContent = 'Check Balance';
 }
@@ -1112,10 +1150,8 @@ async function withdraw() {
     btn.textContent = 'Withdraw ' + withdrawLabel;
     btn.disabled = false;
 
-    // Refresh balances
-    nativeBalance = null;
-    checkedTokens = [];
-    checkBalance();
+    // Refresh only the assets that changed — native (gas spent) + the withdrawn token
+    refreshAfterWithdraw(smartAcct, assetType, tokenAddr);
 
   } catch (e) {
     log('Error: ' + e.message, '#ef4444');
@@ -1124,6 +1160,61 @@ async function withdraw() {
     btn.textContent = 'Withdraw ' + withdrawLabel;
     showAlert('txAlert', 'alert-error', '❌ ' + e.message);
   }
+}
+
+// Targeted balance refresh after a successful withdrawal.
+// Only re-fetches the native balance (gas was spent) and the withdrawn token
+// (balance should now be 0 or reduced), then re-renders the asset list in place.
+async function refreshAfterWithdraw(sa, withdrawnAssetType, withdrawnTokenAddr) {
+  const net = getNet();
+  const rpc = makeRpc();
+  log('Refreshing balances…');
+
+  const tasks = [
+    withRetry(() => rpc.getBalance(sa))
+      .then(bal => { nativeBalance = bal; })
+      .catch(e => { log('Could not refresh native balance: ' + fmtFetchErr(e), '#6b7280'); }),
+  ];
+
+  if (withdrawnAssetType === 'erc20' && withdrawnTokenAddr && ethers.isAddress(withdrawnTokenAddr)) {
+    const idx = checkedTokens.findIndex(t => t.address.toLowerCase() === withdrawnTokenAddr.toLowerCase());
+    if (idx >= 0) {
+      const tok = checkedTokens[idx];
+      const contract = new ethers.Contract(tok.address, ERC20_ABI, rpc);
+      tasks.push(
+        withRetry(() => contract.balanceOf(sa))
+          .then(bal => {
+            checkedTokens[idx] = { ...tok, rawBalance: bal, formattedBalance: ethers.formatUnits(bal, tok.decimals) };
+          })
+          .catch(e => { log('Could not refresh ' + tok.symbol + ': ' + fmtFetchErr(e), '#6b7280'); })
+      );
+    }
+  }
+
+  await Promise.all(tasks);
+
+  // Re-render from updated state
+  const allNonZero = [];
+  if (nativeBalance && nativeBalance > 0n)
+    allNonZero.push({ type: 'native', symbol: net.nativeSymbol, balance: nativeBalance, decimals: 18, address: null });
+  for (const t of checkedTokens)
+    if (t.rawBalance > 0n)
+      allNonZero.push({ type: 'erc20', symbol: t.symbol, balance: t.rawBalance, decimals: t.decimals, address: t.address });
+  renderAssetList(allNonZero);
+
+  // Recompute gas warning with fresh native balance
+  if (nativeBalance !== null) {
+    const warnEl = document.getElementById('ethBalWarn');
+    if (nativeBalance === 0n) {
+      warnEl.textContent = '⚠ No ' + net.nativeSymbol + ' remaining';
+      warnEl.className = 'eth-warn bad';
+    } else {
+      warnEl.textContent = '✓ ' + parseFloat(ethers.formatEther(nativeBalance)).toFixed(6) + ' ' + net.nativeSymbol + ' remaining';
+      warnEl.className = 'eth-warn good';
+    }
+  }
+
+  log('Balances refreshed', '#4ade80');
 }
 
 // Initialise withdraw presets on load
