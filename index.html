@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https: http://localhost:* http://127.0.0.1:*; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+  />
+  <meta name="referrer" content="no-referrer" />
   <title>Recover Your Funds</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -15,53 +20,77 @@
     <p class="subtitle">Withdraw any native token or ERC-20 from your Biconomy smart account.</p>
   </header>
 
-  <!-- Step 1: Connect wallet -->
+  <!-- Step 1: Connect the exported owner wallet -->
   <div class="card">
-    <div class="card-title"><div class="step-num" id="s1num">1</div> Connect Wallet</div>
+    <div class="card-title"><div class="step-num" id="s1num">1</div> Load Your Exported Wallet</div>
+    <p class="step-copy">First move the wallet Privy lets you export into MetaMask. We will then find the separate Biconomy account it controls.</p>
 
-    <button class="btn btn-primary" id="connectMetaMaskBtn" onclick="connectMetaMask()">
-      Connect MetaMask
+    <div class="wallet-setup-guide">
+      <div class="wallet-setup-title">Before you connect</div>
+      <ol>
+        <li>Open <strong>Privy Home</strong> and select the app whose funds you want to recover.</li>
+        <li>Choose <strong>Export keys</strong> and note the address of the exportable wallet. This is usually the first wallet shown—not the separate smart account below it.</li>
+        <li>In MetaMask, open the account selector and use <strong>Add wallet → Import an account</strong> to import that private key.</li>
+        <li>Return here, connect MetaMask, and select the exact address you exported.</li>
+      </ol>
+      <p class="wallet-setup-warning">Keep the private key secret. Import it into MetaMask; do not send it to anyone or paste it into the hosted recovery app.</p>
+      <a class="wallet-setup-link" href="https://support.metamask.io/start/use-an-existing-wallet/" target="_blank" rel="noopener noreferrer">MetaMask’s official import guide ↗</a>
+    </div>
+
+    <button class="btn btn-primary" id="connectMetaMaskBtn" type="button">
+      I’ve Imported It — Connect MetaMask
     </button>
 
-    <div class="signer-divider"><span>or use a private key</span></div>
-
-    <div class="field">
-      <label>Private Key</label>
-      <input id="privKey" type="password" placeholder="0x…" autocomplete="off" spellcheck="false" />
+    <div class="wallet-account-chooser" id="metaMaskAccountChooser" hidden>
+      <div class="wallet-account-heading">Choose the exported wallet to use</div>
+      <p class="wallet-account-help">MetaMask may expose several wallets imported from different Privy apps. Select the exact address shown as exportable in Privy Home.</p>
+      <div class="wallet-account-list" id="metaMaskAccountList"></div>
+      <button class="btn btn-outline btn-small wallet-account-manage" id="requestMetaMaskAccountsBtn" type="button">
+        Choose Different Accounts in MetaMask
+      </button>
     </div>
-    <button class="btn btn-outline" id="loadKeyBtn" onclick="loadKey()">Load with Private Key</button>
+
+    <details class="private-key-fallback">
+      <summary>Use a key exported from Privy Home</summary>
+      <div class="field">
+        <label for="privKey">Private Key</label>
+        <input id="privKey" type="password" placeholder="0x…" autocomplete="off" spellcheck="false" />
+        <p class="security-note">Prefer MetaMask. Only enter a key when running a verified local copy of this tool.</p>
+      </div>
+      <button class="btn btn-outline" id="loadKeyBtn" type="button">Load with Private Key</button>
+    </details>
 
     <div id="walletStatus" class="wallet-status" style="margin-top: 12px; display: none;">
       <div class="dot" id="connDot"></div>
       <span id="connText"></span>
     </div>
+    <button class="change-wallet-btn" id="changeWalletBtn" type="button" hidden>Use a Different Wallet</button>
     <div id="connectAlert" class="alert"></div>
   </div>
 
-  <!-- Step 2: Smart account -->
+  <!-- Step 2: Discover and scan smart accounts -->
   <div class="card">
-    <div class="card-title"><div class="step-num" id="s2num">2</div> Smart Account</div>
+    <div class="card-title"><div class="step-num" id="s2num">2</div> Find Your Funds</div>
+    <p class="step-copy">Your exported wallet and recovery account are different addresses. We identify the recovery account automatically.</p>
+
+    <div id="discoveryStatus" class="discovery-status" role="status">
+      Connect your exported wallet above to search for its recovery account.
+    </div>
+    <div id="discoveredAccounts" class="account-options"></div>
+    <button class="btn btn-outline btn-small" id="retryDiscoveryBtn" type="button" hidden>Search Again</button>
 
     <div class="field">
       <label>Network</label>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="net-btn active" data-net="base"     onclick="selectNetwork(this)">Base</button>
-        <button class="net-btn"        data-net="ethereum" onclick="selectNetwork(this)">Ethereum</button>
-        <button class="net-btn"        data-net="polygon"  onclick="selectNetwork(this)">Polygon</button>
-        <button class="net-btn"        data-net="optimism" onclick="selectNetwork(this)">Optimism</button>
-        <button class="net-btn"        data-net="arbitrum" onclick="selectNetwork(this)">Arbitrum</button>
+        <button class="net-btn active" data-net="base" type="button">Base</button>
+        <button class="net-btn" data-net="ethereum" type="button">Ethereum</button>
+        <button class="net-btn" data-net="polygon" type="button">Polygon</button>
+        <button class="net-btn" data-net="optimism" type="button">Optimism</button>
+        <button class="net-btn" data-net="arbitrum" type="button">Arbitrum</button>
       </div>
     </div>
 
-    <div class="field">
-      <label>Smart Account Address</label>
-      <input id="smartAcct" type="text" placeholder="0x…" spellcheck="false" />
-    </div>
-
-    <div class="field" style="display:flex; gap:8px;">
-      <button class="btn btn-outline" id="checkBalBtn" onclick="checkBalance()" style="flex:1;">Check Balance</button>
-      <button class="btn btn-diag"   onclick="diagnoseAccount()" id="diagBtn" style="flex:1;">Diagnose Account</button>
-    </div>
+    <button class="btn btn-primary" id="checkBalBtn" type="button" disabled>Find My Funds</button>
 
     <div id="balanceWrap" style="display:none; margin-top:14px;">
       <div id="assetList"></div>
@@ -70,25 +99,32 @@
       <!-- Custom token (edge case — add anything not in the preset list) -->
       <div style="display:flex; gap:6px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
         <input id="customTokenAddr" type="text" placeholder="Add a custom token address 0x…" style="flex:1;" spellcheck="false" />
-        <button class="btn btn-outline" style="width:auto; padding:0 14px; font-size:12px; white-space:nowrap;" onclick="checkCustomToken()">+ Check</button>
+        <button class="btn btn-outline" id="checkCustomTokenBtn" type="button" style="width:auto; padding:0 14px; font-size:12px; white-space:nowrap;">+ Check</button>
       </div>
     </div>
 
     <div id="balanceAlert" class="alert"></div>
-    <div id="diagResults" class="diag-results"></div>
-  </div>
 
-  <!-- Debug log -->
-  <div class="card" id="debugCard" style="opacity:0.7; transition:opacity 0.2s;"
-       onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.7">
-    <div class="card-title" style="justify-content:space-between;">
-      <span>Debug Log</span>
-      <span style="cursor:pointer; color:var(--muted); font-size:10px;"
-            onclick="document.getElementById('debugLog').innerHTML=''">clear</span>
-    </div>
-    <div id="debugLog" style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#9ca3af; line-height:1.8; max-height:300px; overflow-y:auto;">
-      <span style="color:#4b5563;">Waiting for action…</span>
-    </div>
+    <details class="advanced-troubleshooting" id="advancedTroubleshooting">
+      <summary>Having trouble? Advanced troubleshooting</summary>
+      <p class="troubleshooting-copy">Use this only if automatic discovery cannot find the account. The smart account is normally the second address shown for the app in Privy Home—not the address whose key you exported.</p>
+      <div class="field">
+        <label for="smartAcct">Manual smart account address</label>
+        <input id="smartAcct" type="text" placeholder="0x…" spellcheck="false" />
+      </div>
+      <button class="btn btn-outline" id="diagBtn" type="button">Diagnose Account</button>
+      <div id="diagResults" class="diag-results"></div>
+
+      <div class="debug-panel" id="debugCard">
+        <div class="debug-title">
+          <span>Debug Log</span>
+          <button class="log-clear" id="clearLogBtn" type="button">clear</button>
+        </div>
+        <div id="debugLog" role="log" aria-live="off">
+          <span style="color:#4b5563;">Waiting for action…</span>
+        </div>
+      </div>
+    </details>
   </div>
 
   <!-- Step 3: Withdraw -->
@@ -99,25 +135,26 @@
       <label>
         Bundler RPC URL
         <span style="color:var(--warn); font-size:10px;">
-          (get a free key at <a href="https://dashboard.pimlico.io" target="_blank" style="color:var(--warn);">pimlico.io</a>)
+          (get a free key at <a href="https://dashboard.pimlico.io" target="_blank" rel="noopener noreferrer" style="color:var(--warn);">pimlico.io</a>)
         </span>
       </label>
       <input id="bundlerUrl" type="text" placeholder="https://api.pimlico.io/v2/8453/rpc?apikey=…" spellcheck="false" />
     </div>
 
     <div class="field">
-      <label>Destination Address</label>
+      <label>Destination Wallet</label>
       <input id="destAddr" type="text" placeholder="0x…" spellcheck="false" />
+      <p class="field-hint">Defaults to your exported wallet. You can replace it with another address.</p>
     </div>
 
     <!-- Asset type selector -->
     <div class="field">
       <label>Asset Type</label>
       <div style="display:flex; gap:6px;">
-        <button class="asset-btn" id="assetBtnNative" onclick="selectAssetType('native')">
+        <button class="asset-btn" id="assetBtnNative" type="button">
           Native&nbsp;(<span id="assetNativeSymbol">ETH</span>)
         </button>
-        <button class="asset-btn active" id="assetBtnErc20" onclick="selectAssetType('erc20')">
+        <button class="asset-btn active" id="assetBtnErc20" type="button">
           ERC-20 Token
         </button>
       </div>
@@ -127,7 +164,7 @@
     <div class="field" id="tokenField">
       <label>Token Contract</label>
       <div class="token-presets" id="withdrawPresets" style="margin-bottom:6px;"></div>
-      <input id="withdrawTokenAddr" type="text" placeholder="0x…" spellcheck="false" oninput="scheduleTokenResolve()" />
+      <input id="withdrawTokenAddr" type="text" placeholder="0x…" spellcheck="false" />
       <div id="tokenResolveInfo" style="font-size:10px; color:var(--muted); margin-top:4px; font-family:'JetBrains Mono',monospace;"></div>
     </div>
 
@@ -135,14 +172,14 @@
       <label>Amount (<span id="amtLabel">tokens</span>)</label>
       <div class="input-wrap">
         <input id="amount" type="number" placeholder="0.00" min="0" step="any" />
-        <span class="max-btn" onclick="setMax()">MAX</span>
+        <button class="max-btn" id="maxBtn" type="button">MAX</button>
       </div>
     </div>
 
     <div id="txAlert" class="alert alert-warn visible">⚠️ Connect your wallet and check the balance first.</div>
 
     <div style="margin-top:12px;">
-      <button class="btn btn-primary" id="withdrawBtn" onclick="withdraw()" disabled>Withdraw</button>
+      <button class="btn btn-primary" id="withdrawBtn" type="button" disabled>Withdraw</button>
     </div>
   </div>
 
@@ -150,12 +187,12 @@
   <div id="resultCard" class="card" style="display:none;">
     <div class="card-title"><div class="step-num done">✓</div> Transaction Submitted</div>
     <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">Your withdrawal has been confirmed:</p>
-    <a id="txLink" class="tx-link" href="#" target="_blank">View on block explorer →</a>
+    <a id="txLink" class="tx-link" href="#" target="_blank" rel="noopener noreferrer">View on block explorer →</a>
   </div>
 
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+<script src="vendor/ethers-6.17.0.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

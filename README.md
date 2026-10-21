@@ -18,40 +18,64 @@ When an app shuts down, **you lose access to the smart account** — the app's i
 
 ## How to use
 
-### 1. Open the tool
+### 1. Serve a trusted local copy
 
-The tool is three static files (`index.html`, `style.css`, `app.js`) that must be served together. Options:
+Clone or download this repository, verify the source, and serve the entire folder locally:
 
-- **[Netlify Drop](https://app.netlify.com/drop)** — download or clone this repo, drag the folder onto the Netlify Drop page, and open the URL it gives you
-- **Local server** — run `npx serve .` in the folder and open `http://localhost:3000`
+```sh
+python3 -m http.server 3000 --bind 127.0.0.1
+```
+
+Then open `http://localhost:3000`. The vendored ethers.js file under `vendor/` must be served with the other files.
+
+You can deploy the static folder to a host you control, but anyone using the private-key fallback must trust that host and its deployment pipeline. A verified local copy is safer.
+
+#### Host on Vercel (optional)
+
+This repository is a plain static site and does not need a build step, server, environment variables, or Netlify. After pushing it to GitHub:
+
+1. In Vercel, choose **Add New → Project** and import the repository.
+2. Set **Framework Preset** to **Other**.
+3. Leave the root directory at the repository root and leave the build and output settings empty.
+4. Deploy.
+
+The included `vercel.json` applies the same Content Security Policy as the page, prevents framing, and adds other browser security headers. You can also deploy the repository root with the Vercel CLI by running `vercel --prod`.
+
+Use a Vercel project and domain that users can clearly identify as yours. A hosted version is convenient for MetaMask, but private-key users must trust your Vercel account, domain, and every deployed revision. Keep recommending a verified local copy for the private-key fallback, and never put a private key or bundler API key in Vercel environment variables or source code.
 
 ### 2. Connect your wallet
 
-- **MetaMask** — click "Connect MetaMask" if you have already imported the owner EOA into MetaMask
-- **Private key** — paste the owner EOA's private key and click "Load with Private Key". The key is used only in-memory and is never sent anywhere.
+- **MetaMask (recommended)** — click "Connect MetaMask", then explicitly select the exact exported owner address. The tool never silently chooses the first MetaMask account.
+- **Private key (advanced fallback)** — only use this on a verified local copy. The key is used in memory, the input is cleared immediately after loading, and the application does not transmit or store it.
 
-### 3. Select network and enter your smart account address
+If wallets from several Privy apps are imported into MetaMask, all accounts shared with the site are listed with their full addresses. Match the address to the exportable wallet shown in Privy Home. **Choose Different Accounts in MetaMask** reopens MetaMask's permission chooser when the address you need is not listed.
 
-Select the network the smart account lives on (Base is the default), then paste the smart account address.
+Use **Use a Different Wallet** to clear the current recovery session and choose or load another account. If the available accounts change inside MetaMask, the tool clears the recovery session and requires another explicit selection; it never switches to account 1 automatically.
 
-### 4. Check Balance
+### 3. Let the tool find the recovery account
 
-Click **Check Balance**. The tool scans your native balance and all common tokens simultaneously and displays every asset with a non-zero balance. It also shows whether the account has enough native token for gas.
+After the exported wallet is loaded, the tool searches the supported networks with Biconomy's on-chain address resolver. It only offers accounts whose ownership can be verified against the exported wallet. If one account is found, it is selected automatically; if several are found, choose the account you want to scan.
+
+The exported wallet and smart account are different addresses. In Privy Home, the exportable wallet is normally shown first and its associated smart account second. You should not need to copy either address into the tool during the normal flow.
+
+### 4. Find your funds
+
+Click **Find My Funds**. The tool scans the selected account's native balance and all built-in tokens simultaneously and displays every asset with a non-zero balance. It also shows whether the account has enough native token for gas.
 
 If nothing shows up, make sure the correct network is selected. If the native token balance is zero or very low, send a small amount to the smart account before continuing.
 
-You can also paste any token address into the **"Add a custom token"** field to check assets not in the built-in list.
+The automatic balance scan covers the tokens listed below. Privy Home may show app-specific tokens that are not in that list; paste each token's contract address into the **"Add a custom token"** field to check and recover it.
 
-### 5. (Optional) Diagnose Account
+### 5. (Optional) Advanced troubleshooting
 
-Click **Diagnose Account** to inspect the smart account on-chain. It confirms the proxy implementation, detects the ECDSA ownership module, looks up the registered owner, and verifies it matches the wallet you connected. Useful for debugging if the withdrawal fails with a signature error.
+Open **Having trouble? Advanced troubleshooting** only if discovery cannot find the account or a withdrawal fails. There you can enter a smart account manually, run **Diagnose Account**, and view the fixed-height debug log. Manually entered accounts are ownership-checked before balances are scanned.
 
 ### 6. Fill in withdrawal details
 
 Click **Withdraw →** on any asset in the balance list to auto-fill the withdrawal form, or fill it manually:
 
-- **Bundler RPC URL** — your Pimlico API key URL. Get a free key at [dashboard.pimlico.io](https://dashboard.pimlico.io). Example for Base: `https://api.pimlico.io/v1/8453/rpc?apikey=YOUR_KEY`
-- **Destination address** — the wallet that should receive the funds
+- **Bundler RPC URL** — your Pimlico API key URL. Get a free key at [dashboard.pimlico.io](https://dashboard.pimlico.io). Example for Base: `https://api.pimlico.io/v2/8453/rpc?apikey=YOUR_KEY`
+- **Destination wallet** — defaults to the exported wallet; replace it if the funds should go somewhere else
 - **Asset type** — Native (ETH/POL/etc.) or ERC-20 Token
 - **Token contract** — if ERC-20, paste the token address or pick from the quick presets
 - **Amount** — how much to send, or click **MAX** to fill the full balance
@@ -80,7 +104,10 @@ Any other ERC-20 can be recovered by pasting its contract address into the custo
 
 ## Security notes
 
-- This tool runs entirely in your browser. No data is sent to any server except your own bundler RPC endpoint.
-- Private keys are held in memory only for the duration of the session and are never stored or logged.
+- This tool runs entirely in your browser. Public addresses and blockchain requests are sent to the configured public RPC and bundler endpoints. Private keys are not included in those requests.
+- Prefer MetaMask. If you must use the private-key fallback, use a verified local copy on a trusted machine. Keys are held in memory only for the session, are not stored or logged, and the input is cleared after loading.
+- Runtime JavaScript is served locally. Ethers.js 6.17.0 is vendored under `vendor/`; the page does not load executable code from a CDN.
+- A Content Security Policy blocks remote scripts and inline event handlers. Bundler URLs must use HTTPS, except for localhost development.
+- Each supported network has multiple public RPC endpoints so a single provider outage does not block recovery.
 - Always verify the destination address before clicking Withdraw.
 - The source code is plain HTML, CSS, and JavaScript — inspect it before use.

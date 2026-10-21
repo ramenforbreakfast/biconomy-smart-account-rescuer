@@ -1,7 +1,7 @@
 // Network config: chainId, public RPC, native symbol, common tokens, block explorer
 const NETWORKS = {
   base: {
-    chainId: 8453, name: 'Base', rpc: 'https://mainnet.base.org',
+    chainId: 8453, name: 'Base', rpcs: ['https://mainnet.base.org', 'https://base-rpc.publicnode.com'],
     nativeSymbol: 'ETH', explorer: 'https://basescan.org/tx/',
     tokens: [
       { symbol: 'USDC',  address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6 },
@@ -12,7 +12,7 @@ const NETWORKS = {
     ],
   },
   ethereum: {
-    chainId: 1, name: 'Ethereum', rpc: 'https://eth.llamarpc.com',
+    chainId: 1, name: 'Ethereum', rpcs: ['https://ethereum-rpc.publicnode.com', 'https://cloudflare-eth.com'],
     nativeSymbol: 'ETH', explorer: 'https://etherscan.io/tx/',
     tokens: [
       { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 },
@@ -23,7 +23,7 @@ const NETWORKS = {
     ],
   },
   polygon: {
-    chainId: 137, name: 'Polygon', rpc: 'https://polygon-rpc.com',
+    chainId: 137, name: 'Polygon', rpcs: ['https://polygon-bor-rpc.publicnode.com', 'https://polygon.drpc.org'],
     nativeSymbol: 'POL', explorer: 'https://polygonscan.com/tx/',
     tokens: [
       { symbol: 'USDC',   address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', decimals: 6 },
@@ -35,7 +35,7 @@ const NETWORKS = {
     ],
   },
   optimism: {
-    chainId: 10, name: 'Optimism', rpc: 'https://mainnet.optimism.io',
+    chainId: 10, name: 'Optimism', rpcs: ['https://mainnet.optimism.io', 'https://optimism-rpc.publicnode.com'],
     nativeSymbol: 'ETH', explorer: 'https://optimistic.etherscan.io/tx/',
     tokens: [
       { symbol: 'USDC', address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', decimals: 6 },
@@ -46,7 +46,7 @@ const NETWORKS = {
     ],
   },
   arbitrum: {
-    chainId: 42161, name: 'Arbitrum', rpc: 'https://arb1.arbitrum.io/rpc',
+    chainId: 42161, name: 'Arbitrum', rpcs: ['https://arb1.arbitrum.io/rpc', 'https://arbitrum-one-rpc.publicnode.com'],
     nativeSymbol: 'ETH', explorer: 'https://arbiscan.io/tx/',
     tokens: [
       { symbol: 'USDC', address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6 },
@@ -60,12 +60,17 @@ const NETWORKS = {
 
 const EP_V6 = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
 const EIP1967_IMPL_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+const BICONOMY_ADDRESS_RESOLVER = '0x00000E81673606e07fC79CE5F1b3B26957844468';
+const ADDRESS_RESOLVER_ABI = [
+  'function resolveAddresses(address,uint8) view returns (tuple(address accountAddress,address factoryAddress,address currentImplementation,string currentVersion,string factoryVersion,uint256 deploymentIndex)[])',
+];
+const MAX_BICONOMY_ACCOUNT_INDEX = 10;
 
 const SENTINEL_MODULES = '0x0000000000000000000000000000000000000001';
 
 const KNOWN_BICONOMY_MODULES = [
-  '0x0000001c5b32F37F5beA87BDD5374eB2aC54eA8e',
-  '0x000000Dd8eB18e2D809Ad83D9c1AB48C3DC7dd7A',
+  '0x0000001c5b32f37f5bea87bdd5374eb2ac54ea8e',
+  '0x000000dd8eb18e2d809ad83d9c1ab48c3dc7dd7a',
 ];
 
 const KNOWN_IMPLS = {
@@ -83,7 +88,12 @@ const ERC20_ABI = [
 // Shared signer — set by either connectMetaMask() or loadKey().
 let signer = null;
 let eoaAddress = null;
+let walletConnectionType = null;
 let selectedNetwork = 'base';
+let discoveryRunId = 0;
+let balanceScanRunId = 0;
+let discoveredAccounts = [];
+const verifiedAccounts = new Set();
 
 // Asset state
 let assetType = 'erc20';           // 'native' | 'erc20'
@@ -91,26 +101,37 @@ let nativeBalance = null;          // bigint (wei)
 let checkedTokens = [];            // [{ address, symbol, decimals, rawBalance, formattedBalance }]
 let withdrawTokenDecimals = 18;
 let withdrawTokenSymbol = '';
+let resolvedTokenAddress = null;
 let tokenResolveTimer = null;
 
+function emptyDiagData() {
+  return {
+    entryPoint: null,
+    implAddress: null,
+    kernelVersion: null,
+    defaultValidator: null,
+    confirmedOwner: null,
+    isBiconomy: false,
+    ecdsaModule: null,
+  };
+}
+
 // Populated by diagnoseAccount(); cached for withdraw.
-let diagData = {
-  entryPoint: null,
-  implAddress: null,
-  kernelVersion: null,
-  defaultValidator: null,
-  confirmedOwner: null,
-  isBiconomy: false,
-  ecdsaModule: null,
-};
+let diagData = emptyDiagData();
 
 // Ethers v6 batches all pending calls into one HTTP request by default.
 // Public RPCs (e.g. mainnet.base.org) cap batches at ~10 calls.
 // batchMaxCount: 5 keeps every outgoing batch well within that limit
 // while still sending calls in parallel.
-function makeRpc() {
-  const net = getNet();
-  return new ethers.JsonRpcProvider(net.rpc, undefined, { batchMaxCount: 5 });
+function makeRpc(networkKey = selectedNetwork) {
+  const net = getNet(networkKey);
+  const providers = net.rpcs.map((url, index) => ({
+    provider: new ethers.JsonRpcProvider(url, net.chainId, { batchMaxCount: 5, staticNetwork: true }),
+    priority: index + 1,
+    stallTimeout: 1_500,
+    weight: 1,
+  }));
+  return new ethers.FallbackProvider(providers, net.chainId, { quorum: 1 });
 }
 
 // Retry an async call with exponential backoff + ±40% random jitter so
@@ -128,27 +149,55 @@ async function withRetry(fn, maxRetries = 3, baseDelayMs = 400) {
   }
 }
 
+function errorMessage(error) {
+  if (error && typeof error.message === 'string') return error.message;
+  return String(error || 'Unknown error');
+}
+
+function fmtFetchErr(error) {
+  if (error?.code === 'CALL_EXCEPTION') return 'contract call failed (skipped)';
+  if (error?.code === 'BAD_DATA') return 'bad RPC response (skipped)';
+  return errorMessage(error).slice(0, 160);
+}
+
 // ── UI helpers ──────────────────────────────────────────────────────────────
+
+const MAX_LOG_ROWS = 500;
 
 function log(msg, color) {
   const el = document.getElementById('debugLog');
   const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  el.innerHTML += `<div style="color:${color || '#9ca3af'}"><span style="color:#3b3f4a;">[${ts}]</span> ${msg}</div>`;
+  const row = document.createElement('div');
+  row.style.color = /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#9ca3af';
+  const timestamp = document.createElement('span');
+  timestamp.style.color = '#3b3f4a';
+  timestamp.textContent = '[' + ts + ']';
+  row.append(timestamp, document.createTextNode(' ' + String(msg)));
+  el.appendChild(row);
+  while (el.children.length > MAX_LOG_ROWS) el.firstElementChild.remove();
   el.scrollTop = el.scrollHeight;
 }
 
 function showAlert(id, type, msg) {
   const el = document.getElementById(id);
   el.className = `alert ${type} visible`;
-  el.innerHTML = msg;
+  el.textContent = String(msg);
 }
 
-function hideAlert(id) { document.getElementById(id).className = 'alert'; }
+function hideAlert(id) {
+  const el = document.getElementById(id);
+  el.className = 'alert';
+  el.textContent = '';
+}
 
-function getNet() { return NETWORKS[selectedNetwork] || NETWORKS.base; }
+function getNet(networkKey = selectedNetwork) { return NETWORKS[networkKey] || NETWORKS.base; }
 
 function selectNetwork(btn) {
-  selectedNetwork = btn.getAttribute('data-net');
+  const networkKey = btn.getAttribute('data-net');
+  if (!NETWORKS[networkKey]) return;
+  selectedNetwork = networkKey;
+  balanceScanRunId++;
+  scanInProgress = false;
   document.querySelectorAll('.net-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 
@@ -160,13 +209,193 @@ function selectNetwork(btn) {
   renderWithdrawPresets();
 
   checkedTokens = [];
-  document.getElementById('tokenBalList').innerHTML = '';
+  nativeBalance = null;
+  diagData = emptyDiagData();
+  resolvedTokenAddress = null;
+  withdrawTokenSymbol = '';
+  document.getElementById('assetList').replaceChildren();
+  document.getElementById('balanceWrap').style.display = 'none';
+  document.getElementById('withdrawTokenAddr').value = '';
+  document.getElementById('tokenResolveInfo').textContent = '';
+  document.getElementById('withdrawBtn').disabled = true;
+  document.getElementById('diagResults').className = 'diag-results';
+  document.getElementById('checkBalBtn').disabled = !ethers.isAddress(document.getElementById('smartAcct').value.trim());
+  hideAlert('balanceAlert');
+  showAlert('txAlert', 'alert-warn', '⚠️ Check the balance on ' + getNet().name + ' before withdrawing.');
   log('Network → ' + selectedNetwork);
+}
+
+// ── Smart-account discovery ─────────────────────────────────────────────────
+
+function accountKey(networkKey, address) {
+  return networkKey + ':' + address.toLowerCase();
+}
+
+function shortAddress(address) {
+  return address.slice(0, 8) + '…' + address.slice(-6);
+}
+
+function setDiscoveryStatus(type, message) {
+  const el = document.getElementById('discoveryStatus');
+  el.className = 'discovery-status' + (type ? ' ' + type : '');
+  el.textContent = message;
+}
+
+function setSelectedNetwork(networkKey) {
+  const button = Array.from(document.querySelectorAll('.net-btn'))
+    .find(candidate => candidate.getAttribute('data-net') === networkKey);
+  if (button) selectNetwork(button);
+}
+
+async function verifySmartAccountOwner(accountAddress, networkKey, expectedOwner) {
+  const rpc = makeRpc(networkKey);
+  const ownerAbi = [
+    'function getOwner(address) view returns (address)',
+    'function smartAccountOwners(address) view returns (address)',
+    'function owner(address) view returns (address)',
+    'function ecdsaValidatorStorage(address) view returns (address)',
+  ];
+
+  for (const moduleAddress of KNOWN_BICONOMY_MODULES) {
+    const module = new ethers.Contract(moduleAddress, ownerAbi, rpc);
+    for (const method of ['getOwner', 'smartAccountOwners', 'owner', 'ecdsaValidatorStorage']) {
+      try {
+        const owner = await module[method](accountAddress);
+        if (owner !== ethers.ZeroAddress && owner.toLowerCase() === expectedOwner.toLowerCase()) {
+          return { owner: ethers.getAddress(owner), module: ethers.getAddress(moduleAddress) };
+        }
+      } catch (_) {}
+    }
+  }
+  return null;
+}
+
+async function resolveAccountsOnNetwork(networkKey, ownerAddress) {
+  const rpc = makeRpc(networkKey);
+  const resolverCode = await withRetry(() => rpc.getCode(BICONOMY_ADDRESS_RESOLVER), 1);
+  if (resolverCode === '0x') return [];
+
+  const resolver = new ethers.Contract(BICONOMY_ADDRESS_RESOLVER, ADDRESS_RESOLVER_ABI, rpc);
+  const resolved = await withRetry(
+    () => resolver.resolveAddresses(ownerAddress, MAX_BICONOMY_ACCOUNT_INDEX),
+    1,
+  );
+
+  const verified = await Promise.all(resolved.map(async item => {
+    const accountAddress = ethers.getAddress(item.accountAddress);
+    const ownership = await verifySmartAccountOwner(accountAddress, networkKey, ownerAddress);
+    if (!ownership) {
+      log('Skipped unverified account ' + accountAddress + ' on ' + getNet(networkKey).name, '#f59e0b');
+      return null;
+    }
+    return {
+      networkKey,
+      address: accountAddress,
+      owner: ownership.owner,
+      module: ownership.module,
+      version: String(item.currentVersion || ''),
+      deploymentIndex: item.deploymentIndex.toString(),
+    };
+  }));
+
+  return verified.filter(Boolean);
+}
+
+function renderDiscoveredAccounts() {
+  const container = document.getElementById('discoveredAccounts');
+  container.replaceChildren();
+
+  for (const account of discoveredAccounts) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'account-option';
+    button.dataset.accountKey = accountKey(account.networkKey, account.address);
+
+    const heading = document.createElement('span');
+    heading.className = 'account-option-heading';
+    heading.textContent = getNet(account.networkKey).name + ' recovery account';
+    const address = document.createElement('span');
+    address.className = 'account-option-address';
+    address.textContent = account.address;
+    const owner = document.createElement('span');
+    owner.className = 'account-option-owner';
+    owner.textContent = 'Controlled by ' + shortAddress(account.owner) + ' · ownership verified';
+    button.append(heading, address, owner);
+    button.addEventListener('click', () => selectDiscoveredAccount(account));
+    container.appendChild(button);
+  }
+}
+
+function selectDiscoveredAccount(account) {
+  setSelectedNetwork(account.networkKey);
+  document.getElementById('smartAcct').value = account.address;
+  document.getElementById('checkBalBtn').disabled = false;
+  verifiedAccounts.add(accountKey(account.networkKey, account.address));
+  diagData.ecdsaModule = account.module;
+
+  document.querySelectorAll('.account-option').forEach(button => {
+    button.classList.toggle('selected', button.dataset.accountKey === accountKey(account.networkKey, account.address));
+  });
+  setDiscoveryStatus(
+    'success',
+    '✓ Recovery account found on ' + getNet(account.networkKey).name + '. Its ownership matches your exported wallet.',
+  );
+  hideAlert('balanceAlert');
+  log('Selected verified account: ' + account.address + ' on ' + getNet(account.networkKey).name, '#4ade80');
+}
+
+async function discoverSmartAccounts() {
+  if (!eoaAddress) return;
+  const runId = ++discoveryRunId;
+  const retryButton = document.getElementById('retryDiscoveryBtn');
+  retryButton.hidden = true;
+  retryButton.disabled = true;
+  discoveredAccounts = [];
+  document.getElementById('discoveredAccounts').replaceChildren();
+  document.getElementById('smartAcct').value = '';
+  document.getElementById('checkBalBtn').disabled = true;
+  setDiscoveryStatus('loading', 'Searching supported networks for Biconomy recovery accounts…');
+  log('Searching for Biconomy accounts controlled by ' + eoaAddress);
+
+  const searches = await Promise.allSettled(
+    Object.keys(NETWORKS).map(networkKey => resolveAccountsOnNetwork(networkKey, eoaAddress)),
+  );
+  if (runId !== discoveryRunId) return;
+
+  const unique = new Map();
+  searches.forEach(result => {
+    if (result.status !== 'fulfilled') {
+      log('Account search skipped an unavailable network: ' + fmtFetchErr(result.reason), '#6b7280');
+      return;
+    }
+    result.value.forEach(account => unique.set(accountKey(account.networkKey, account.address), account));
+  });
+  discoveredAccounts = Array.from(unique.values());
+  renderDiscoveredAccounts();
+  retryButton.hidden = false;
+  retryButton.disabled = false;
+
+  if (discoveredAccounts.length === 0) {
+    setDiscoveryStatus(
+      'warn',
+      'No verified Biconomy recovery account was found. Try Search Again, or use the manual fallback under Advanced troubleshooting.',
+    );
+    log('No verified Biconomy accounts found', '#f59e0b');
+    return;
+  }
+
+  if (discoveredAccounts.length === 1) {
+    selectDiscoveredAccount(discoveredAccounts[0]);
+  } else {
+    setDiscoveryStatus('success', '✓ Found ' + discoveredAccounts.length + ' verified recovery accounts. Choose the one you want to scan.');
+    log('Found ' + discoveredAccounts.length + ' verified Biconomy accounts', '#4ade80');
+  }
 }
 
 // ── Asset type toggle ────────────────────────────────────────────────────────
 
 function selectAssetType(type) {
+  hideAlert('txAlert');
   assetType = type;
   const net = getNet();
   document.getElementById('assetBtnNative').classList.toggle('active', type === 'native');
@@ -186,15 +415,118 @@ async function connectMetaMask() {
     showAlert('connectAlert', 'alert-error', '❌ MetaMask not detected. Install MetaMask or use a private key below.');
     return;
   }
+
+  const connectButton = document.getElementById('connectMetaMaskBtn');
+  connectButton.disabled = true;
+  connectButton.textContent = 'Opening MetaMask…';
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    showMetaMaskAccountChooser(accounts);
+  } catch (e) {
+    showAlert('connectAlert', 'alert-error', '❌ ' + errorMessage(e));
+  } finally {
+    if (walletConnectionType !== 'metamask') {
+      connectButton.disabled = false;
+      connectButton.textContent = 'Refresh MetaMask Accounts';
+    }
+  }
+}
+
+function normalizeMetaMaskAccounts(accounts) {
+  const uniqueAccounts = new Map();
+  if (!Array.isArray(accounts)) return [];
+
+  for (const account of accounts) {
+    try {
+      const address = ethers.getAddress(account);
+      uniqueAccounts.set(address.toLowerCase(), address);
+    } catch (_) {
+      // Ignore malformed values supplied by a wallet provider.
+    }
+  }
+  return [...uniqueAccounts.values()];
+}
+
+function showMetaMaskAccountChooser(accounts) {
+  const chooser = document.getElementById('metaMaskAccountChooser');
+  const list = document.getElementById('metaMaskAccountList');
+  const validAccounts = normalizeMetaMaskAccounts(accounts);
+  list.replaceChildren();
+  chooser.hidden = false;
+
+  validAccounts.forEach((address, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'wallet-account-option';
+    button.title = 'Use ' + address;
+
+    const label = document.createElement('span');
+    label.className = 'wallet-account-label';
+    label.textContent = 'MetaMask account ' + (index + 1);
+    const value = document.createElement('span');
+    value.className = 'wallet-account-address';
+    value.textContent = address;
+    button.append(label, value);
+    button.addEventListener('click', () => void selectMetaMaskAccount(address));
+    list.appendChild(button);
+  });
+
+  if (validAccounts.length === 0) {
+    showAlert('connectAlert', 'alert-info', 'No account is currently shared with this site. Choose accounts in MetaMask to continue.');
+    return;
+  }
+
+  showAlert(
+    'connectAlert',
+    'alert-info',
+    'Select the exact exported address. The tool will not choose an account automatically.',
+  );
+}
+
+async function selectMetaMaskAccount(address) {
+  hideAlert('connectAlert');
+  const requestedAddress = ethers.getAddress(address);
+  const accountButtons = document.querySelectorAll('.wallet-account-option');
+  accountButtons.forEach(button => { button.disabled = true; });
+
   try {
     const provider = new ethers.BrowserProvider(window.ethereum);
-    signer = await provider.getSigner();
-    const address = await signer.getAddress();
-    document.getElementById('connectMetaMaskBtn').textContent = 'Connected ✓';
-    document.getElementById('connectMetaMaskBtn').disabled = true;
-    setWalletConnected(address, 'MetaMask');
+    const nextSigner = await provider.getSigner(requestedAddress);
+    const signerAddress = ethers.getAddress(await nextSigner.getAddress());
+    if (signerAddress.toLowerCase() !== requestedAddress.toLowerCase()) {
+      throw new Error('MetaMask returned a different account than the one selected.');
+    }
+    signer = nextSigner;
+    setWalletConnected(signerAddress, 'MetaMask', 'metamask');
   } catch (e) {
-    showAlert('connectAlert', 'alert-error', '❌ ' + e.message);
+    signer = null;
+    accountButtons.forEach(button => { button.disabled = false; });
+    showAlert('connectAlert', 'alert-error', '❌ Could not select that MetaMask account: ' + errorMessage(e));
+  }
+}
+
+async function requestMetaMaskAccountPermissions() {
+  hideAlert('connectAlert');
+  if (!window.ethereum) {
+    showAlert('connectAlert', 'alert-error', '❌ MetaMask not detected.');
+    return;
+  }
+
+  const button = document.getElementById('requestMetaMaskAccountsBtn');
+  button.disabled = true;
+  button.textContent = 'Opening MetaMask…';
+  try {
+    await window.ethereum.request({
+      method: 'wallet_requestPermissions',
+      params: [{ eth_accounts: {} }],
+    });
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    showMetaMaskAccountChooser(accounts);
+  } catch (e) {
+    showAlert('connectAlert', 'alert-error', '❌ ' + errorMessage(e));
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Choose Different Accounts in MetaMask';
   }
 }
 
@@ -211,24 +543,131 @@ function loadKey() {
   }
   try {
     signer = new ethers.Wallet(pk);
+    document.getElementById('privKey').value = '';
+    pk = '';
     document.getElementById('loadKeyBtn').textContent = 'Loaded ✓';
     document.getElementById('loadKeyBtn').disabled = true;
-    setWalletConnected(signer.address, 'private key');
+    setWalletConnected(signer.address, 'private key', 'private-key');
   } catch (e) {
-    showAlert('connectAlert', 'alert-error', '❌ ' + e.message);
+    showAlert('connectAlert', 'alert-error', '❌ ' + errorMessage(e));
   }
 }
 
-function setWalletConnected(address, label) {
-  eoaAddress = address;
+function clearRecoveredAccountState() {
+  discoveryRunId++;
+  balanceScanRunId++;
+  scanInProgress = false;
+  discoveredAccounts = [];
+  verifiedAccounts.clear();
+  nativeBalance = null;
+  checkedTokens = [];
+  diagData = emptyDiagData();
+  resolvedTokenAddress = null;
+  withdrawTokenSymbol = '';
+  clearTimeout(tokenResolveTimer);
+
+  document.getElementById('discoveredAccounts').replaceChildren();
+  document.getElementById('retryDiscoveryBtn').hidden = true;
+  document.getElementById('smartAcct').value = '';
+  document.getElementById('checkBalBtn').disabled = true;
+  document.getElementById('checkBalBtn').textContent = 'Find My Funds';
+  document.getElementById('balanceWrap').style.display = 'none';
+  document.getElementById('assetList').replaceChildren();
+  document.getElementById('diagResults').className = 'diag-results';
+  document.getElementById('customTokenAddr').value = '';
+  document.getElementById('withdrawTokenAddr').value = '';
+  document.getElementById('tokenResolveInfo').textContent = '';
+  document.getElementById('amount').value = '';
+  document.getElementById('withdrawBtn').disabled = true;
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('s2num').className = 'step-num';
+  document.getElementById('s2num').textContent = '2';
+  hideAlert('balanceAlert');
+}
+
+function setWalletConnected(address, label, connectionType) {
+  const nextAddress = ethers.getAddress(address);
+  const previousAddress = eoaAddress;
+  const destination = document.getElementById('destAddr');
+  const destinationWasDefault = !destination.value.trim()
+    || (previousAddress && destination.value.trim().toLowerCase() === previousAddress.toLowerCase());
+
+  clearRecoveredAccountState();
+  eoaAddress = nextAddress;
+  walletConnectionType = connectionType;
   document.getElementById('walletStatus').style.display = 'flex';
   document.getElementById('walletStatus').className = 'wallet-status connected';
   document.getElementById('connDot').className = 'dot on';
-  document.getElementById('connText').textContent = address.slice(0, 6) + '…' + address.slice(-4) + (label ? '  ·  ' + label : '');
+  document.getElementById('connText').textContent = eoaAddress.slice(0, 6) + '…' + eoaAddress.slice(-4) + (label ? '  ·  ' + label : '');
+  document.getElementById('metaMaskAccountChooser').hidden = true;
+  document.getElementById('metaMaskAccountList').replaceChildren();
+  document.getElementById('connectMetaMaskBtn').textContent = 'Connected ✓';
+  document.getElementById('connectMetaMaskBtn').disabled = true;
+  document.getElementById('loadKeyBtn').disabled = true;
   document.getElementById('s1num').className = 'step-num done';
   document.getElementById('s1num').textContent = '✓';
-  showAlert('connectAlert', 'alert-success', '✓ <code style="font-size:11px">' + address + '</code>');
-  log('Connected: ' + address, '#4ade80');
+  document.getElementById('changeWalletBtn').hidden = false;
+  showAlert('connectAlert', 'alert-success', '✓ Exported wallet loaded: ' + eoaAddress);
+  if (destinationWasDefault) destination.value = eoaAddress;
+  showAlert('txAlert', 'alert-warn', '⚠️ Find this wallet’s recovery account and funds before withdrawing.');
+  log('Connected: ' + eoaAddress, '#4ade80');
+  void discoverSmartAccounts();
+}
+
+async function changeWallet() {
+  const previousAddress = eoaAddress;
+  const wasMetaMask = walletConnectionType === 'metamask';
+  clearRecoveredAccountState();
+  signer = null;
+  eoaAddress = null;
+  walletConnectionType = null;
+
+  const destination = document.getElementById('destAddr');
+  if (previousAddress && destination.value.trim().toLowerCase() === previousAddress.toLowerCase()) {
+    destination.value = '';
+  }
+  document.getElementById('privKey').value = '';
+  document.getElementById('connectMetaMaskBtn').disabled = false;
+  document.getElementById('connectMetaMaskBtn').textContent = 'I’ve Imported It — Connect MetaMask';
+  document.getElementById('metaMaskAccountChooser').hidden = true;
+  document.getElementById('metaMaskAccountList').replaceChildren();
+  document.getElementById('loadKeyBtn').disabled = false;
+  document.getElementById('loadKeyBtn').textContent = 'Load with Private Key';
+  document.getElementById('walletStatus').style.display = 'none';
+  document.getElementById('connDot').className = 'dot';
+  document.getElementById('connText').textContent = '';
+  document.getElementById('changeWalletBtn').hidden = true;
+  document.getElementById('s1num').className = 'step-num';
+  document.getElementById('s1num').textContent = '1';
+  setDiscoveryStatus('', 'Connect your exported wallet above to search for its recovery account.');
+  showAlert('connectAlert', 'alert-info', 'Choose another MetaMask account or load a different exported key.');
+  showAlert('txAlert', 'alert-warn', '⚠️ Connect your wallet and find its funds first.');
+  log('Wallet disconnected from this session');
+
+  if (wasMetaMask && window.ethereum) {
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      showMetaMaskAccountChooser(accounts);
+    } catch (e) {
+      showAlert('connectAlert', 'alert-error', '❌ Could not read MetaMask accounts: ' + errorMessage(e));
+    }
+  }
+}
+
+async function handleMetaMaskAccountsChanged(accounts) {
+  const chooserIsOpen = !document.getElementById('metaMaskAccountChooser').hidden;
+  if (walletConnectionType !== 'metamask' && !chooserIsOpen) return;
+
+  const hadSelectedAccount = walletConnectionType === 'metamask';
+  if (hadSelectedAccount) await changeWallet();
+  showMetaMaskAccountChooser(accounts);
+  showAlert(
+    'connectAlert',
+    Array.isArray(accounts) && accounts.length ? 'alert-info' : 'alert-warn',
+    Array.isArray(accounts) && accounts.length
+      ? 'MetaMask accounts changed. Select the exported wallet you want to use; nothing was selected automatically.'
+      : 'MetaMask disconnected. Choose accounts in MetaMask to continue.',
+  );
 }
 
 // ── Balance check — scans native + all known tokens in parallel ───────────────
@@ -240,7 +679,13 @@ const SCAN_COOLDOWN_MS = 2000;
 async function checkBalance() {
   const net = getNet();
   const sa = document.getElementById('smartAcct').value.trim();
+  const requestedWallet = eoaAddress;
+  const requestedGeneration = balanceScanRunId;
   if (!ethers.isAddress(sa)) { showAlert('balanceAlert', 'alert-error', '❌ Invalid address.'); return; }
+  if (eoaAddress && sa.toLowerCase() === eoaAddress.toLowerCase()) {
+    showAlert('balanceAlert', 'alert-error', '❌ That is your exported wallet address, not the recovery account. Use Search Again or enter the second address shown in Privy Home.');
+    return;
+  }
 
   // If already scanning, ignore the duplicate call entirely
   if (scanInProgress) return;
@@ -250,9 +695,10 @@ async function checkBalance() {
   if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
 
   // Another scan may have started while we were waiting
-  if (scanInProgress) return;
+  if (scanInProgress || requestedGeneration !== balanceScanRunId || requestedWallet !== eoaAddress) return;
 
   scanInProgress = true;
+  const scanRunId = ++balanceScanRunId;
   lastScanAt = Date.now();
   hideAlert('balanceAlert');
 
@@ -262,20 +708,33 @@ async function checkBalance() {
 
   document.getElementById('balanceWrap').style.display = 'block';
   const totalAssets = net.tokens.length + 1;
-  document.getElementById('assetList').innerHTML =
-    `<div class="scan-state">Scanning ${totalAssets} assets on ${net.name}…</div>`;
+  const scanState = document.createElement('div');
+  scanState.className = 'scan-state';
+  scanState.textContent = `Scanning ${totalAssets} assets on ${net.name}…`;
+  document.getElementById('assetList').replaceChildren(scanState);
 
   try {
     const rpc = makeRpc();
 
-    log('RPC: ' + net.rpc);
-    log('Checking address: ' + sa);
-
-    function fmtFetchErr(e) {
-      if (e.code === 'CALL_EXCEPTION') return 'contract call failed (skipped)';
-      if (e.code === 'BAD_DATA')       return 'bad RPC response (skipped)';
-      return e.message.slice(0, 80);
+    const code = await withRetry(() => rpc.getCode(sa), 1);
+    if (scanRunId !== balanceScanRunId) return;
+    if (code === '0x') {
+      throw new Error('No smart-account contract was found at this address on ' + net.name + '. Check the account and network.');
     }
+    if (eoaAddress && !verifiedAccounts.has(accountKey(selectedNetwork, sa))) {
+      const ownership = await verifySmartAccountOwner(sa, selectedNetwork, eoaAddress);
+      if (scanRunId !== balanceScanRunId) return;
+      if (!ownership) {
+        throw new Error('This account could not be verified as belonging to your exported wallet. Open Advanced troubleshooting to inspect it.');
+      }
+      verifiedAccounts.add(accountKey(selectedNetwork, sa));
+      diagData.ecdsaModule = ownership.module;
+      setDiscoveryStatus('success', '✓ Ownership verified: this recovery account is controlled by your exported wallet.');
+      log('Ownership verified for manually entered account', '#4ade80');
+    }
+
+    log('RPC pool: ' + net.rpcs.join(', '));
+    log('Checking address: ' + sa);
 
     const checks = [
       withRetry(() => rpc.getBalance(sa))
@@ -300,6 +759,7 @@ async function checkBalance() {
       Promise.all(checks),
       rpc.getFeeData().catch(() => null),
     ]);
+    if (scanRunId !== balanceScanRunId) return;
     const valid = results.filter(Boolean);
     const nonZero = valid.filter(r => r.balance > 0n);
 
@@ -353,42 +813,85 @@ async function checkBalance() {
     log('Scanned ' + totalAssets + ' assets on ' + net.name + ' — ' + nonZero.length + ' non-zero', '#4ade80');
 
   } catch (e) {
-    document.getElementById('assetList').innerHTML = '';
-    showAlert('balanceAlert', 'alert-error', '❌ ' + e.message);
+    if (scanRunId !== balanceScanRunId) return;
+    document.getElementById('assetList').replaceChildren();
+    showAlert('balanceAlert', 'alert-error', '❌ ' + errorMessage(e));
   }
 
+  if (scanRunId !== balanceScanRunId) return;
   scanInProgress = false;
   btn.disabled = false;
-  btn.textContent = 'Check Balance';
+  btn.textContent = 'Find My Funds';
+}
+
+function formatAssetBalance(balance, decimals) {
+  if (balance === 0n) return '0';
+  const value = Number(ethers.formatUnits(balance, decimals));
+  if (value > 0 && value < 0.000001) return '<0.000001';
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 }
 
 function renderAssetList(assets) {
   const list = document.getElementById('assetList');
+  list.replaceChildren();
   if (assets.length === 0) {
-    list.innerHTML = '<div class="scan-state" style="color:var(--muted);">No assets with a balance found on this network.</div>';
+    const empty = document.createElement('div');
+    empty.className = 'scan-state';
+    empty.style.color = 'var(--muted)';
+    empty.textContent = 'No assets with a balance found on this network.';
+    list.appendChild(empty);
     return;
   }
   const net = getNet();
-  list.innerHTML = assets.map(a => {
+  for (const a of assets) {
     const formatted = ethers.formatUnits(a.balance, a.decimals);
-    const display = parseFloat(formatted).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+    const display = formatAssetBalance(a.balance, a.decimals);
     const subtext = a.type === 'native'
       ? 'Native · ' + net.name
       : a.address.slice(0, 10) + '…' + a.address.slice(-4);
-    const onClick = a.type === 'native'
-      ? `prefillWithdrawNative('${formatted}')`
-      : `prefillWithdraw('${a.address}','${a.symbol}',${a.decimals},'${formatted}')`;
-    return `<div class="asset-row">
-      <div class="asset-left">
-        <div class="asset-symbol">${a.symbol}</div>
-        <div class="asset-subtext">${subtext}</div>
-      </div>
-      <div class="asset-right">
-        <div class="asset-bal">${display}</div>
-        <button class="tok-withdraw-btn" onclick="${onClick}">Withdraw →</button>
-      </div>
-    </div>`;
-  }).join('');
+
+    const row = document.createElement('div');
+    row.className = 'asset-row';
+    const left = document.createElement('div');
+    left.className = 'asset-left';
+    const symbol = document.createElement('div');
+    symbol.className = 'asset-symbol';
+    symbol.textContent = a.symbol;
+    const detail = document.createElement('div');
+    detail.className = 'asset-subtext';
+    detail.textContent = subtext;
+    left.append(symbol, detail);
+
+    const right = document.createElement('div');
+    right.className = 'asset-right';
+    const balance = document.createElement('div');
+    balance.className = 'asset-bal';
+    balance.textContent = display;
+    const withdrawButton = document.createElement('button');
+    withdrawButton.className = 'tok-withdraw-btn';
+    withdrawButton.type = 'button';
+    withdrawButton.textContent = 'Withdraw →';
+    withdrawButton.addEventListener('click', () => {
+      if (a.type === 'native') prefillWithdrawNative(formatted);
+      else prefillWithdraw(a.address, a.symbol, a.decimals, formatted);
+    });
+    right.append(balance, withdrawButton);
+    row.append(left, right);
+    list.appendChild(row);
+  }
+}
+
+function normalizeTokenSymbol(value, fallback) {
+  const symbol = typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
+  return (symbol || fallback).slice(0, 32);
+}
+
+function normalizeTokenDecimals(value) {
+  const decimals = Number(value);
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 80) {
+    throw new Error('Token returned unsupported decimals.');
+  }
+  return decimals;
 }
 
 // Add a custom token the user pastes in — appends to the asset list if non-zero
@@ -398,14 +901,16 @@ async function checkCustomToken() {
 
   const addr = document.getElementById('customTokenAddr').value.trim();
   if (!ethers.isAddress(addr)) { showAlert('balanceAlert', 'alert-error', '❌ Invalid token address.'); return; }
+  hideAlert('balanceAlert');
 
   const net = getNet();
   const rpc = makeRpc();
   try {
     const token = new ethers.Contract(addr, ERC20_ABI, rpc);
     const [symR, decR, balR] = await Promise.allSettled([token.symbol(), token.decimals(), token.balanceOf(sa)]);
-    const sym = symR.status === 'fulfilled' ? symR.value : addr.slice(0, 8) + '…';
-    const dec = decR.status === 'fulfilled' ? Number(decR.value) : 18;
+    const sym = normalizeTokenSymbol(symR.status === 'fulfilled' ? symR.value : '', addr.slice(0, 8) + '…');
+    if (decR.status !== 'fulfilled') throw new Error('Could not read token decimals. Withdrawal is disabled for safety.');
+    const dec = normalizeTokenDecimals(decR.value);
     const bal = balR.status === 'fulfilled' ? balR.value : 0n;
     const formatted = ethers.formatUnits(bal, dec);
 
@@ -432,30 +937,33 @@ async function checkCustomToken() {
     }
     log(sym + ': ' + parseFloat(formatted).toFixed(6), bal > 0n ? '#4ade80' : '#6b7280');
   } catch (e) {
-    showAlert('balanceAlert', 'alert-error', '❌ ' + e.message);
+    showAlert('balanceAlert', 'alert-error', '❌ ' + errorMessage(e));
   }
 }
 
 // Quick-fill the withdraw form from an asset row
 function prefillWithdraw(address, symbol, decimals, balance) {
+  hideAlert('txAlert');
   selectAssetType('erc20');
   document.getElementById('withdrawTokenAddr').value = address;
   withdrawTokenDecimals = decimals;
   withdrawTokenSymbol = symbol;
+  resolvedTokenAddress = ethers.getAddress(address);
   document.getElementById('tokenResolveInfo').textContent = '✓ ' + symbol + ' · ' + decimals + ' decimals';
   document.getElementById('amtLabel').textContent = symbol;
   document.getElementById('withdrawBtn').textContent = 'Withdraw ' + symbol;
-  document.getElementById('amount').value = parseFloat(balance).toFixed(Math.min(decimals, 6));
+  document.getElementById('amount').value = balance;
   document.getElementById('withdrawBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function prefillWithdrawNative(balance) {
+  hideAlert('txAlert');
   const net = getNet();
   selectAssetType('native');
-  // Reserve a small amount for gas
-  const reserve = 0.002;
-  const available = Math.max(0, parseFloat(balance) - reserve);
-  document.getElementById('amount').value = available.toFixed(6);
+  const rawBalance = ethers.parseEther(balance);
+  const reserve = ethers.parseEther('0.002');
+  const available = rawBalance > reserve ? rawBalance - reserve : 0n;
+  document.getElementById('amount').value = ethers.formatEther(available);
   document.getElementById('withdrawBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -464,25 +972,30 @@ function prefillWithdrawNative(balance) {
 function renderWithdrawPresets() {
   const net = getNet();
   const container = document.getElementById('withdrawPresets');
-  container.innerHTML = '';
+  container.replaceChildren();
   for (const tok of net.tokens) {
     const btn = document.createElement('button');
     btn.className = 'tok-btn';
     btn.textContent = tok.symbol;
-    btn.onclick = () => {
+    btn.addEventListener('click', () => {
+      hideAlert('txAlert');
       document.getElementById('withdrawTokenAddr').value = tok.address;
       withdrawTokenDecimals = tok.decimals;
       withdrawTokenSymbol = tok.symbol;
+      resolvedTokenAddress = ethers.getAddress(tok.address);
       document.getElementById('tokenResolveInfo').textContent = '✓ ' + tok.symbol + ' · ' + tok.decimals + ' decimals';
       document.getElementById('amtLabel').textContent = tok.symbol;
       document.getElementById('withdrawBtn').textContent = 'Withdraw ' + tok.symbol;
-    };
+    });
     container.appendChild(btn);
   }
 }
 
 // Debounced auto-resolve when user types a custom token address in Step 3
 function scheduleTokenResolve() {
+  resolvedTokenAddress = null;
+  withdrawTokenSymbol = '';
+  document.getElementById('tokenResolveInfo').textContent = '';
   clearTimeout(tokenResolveTimer);
   tokenResolveTimer = setTimeout(resolveWithdrawToken, 600);
 }
@@ -498,6 +1011,7 @@ async function resolveWithdrawToken() {
   if (preset) {
     withdrawTokenDecimals = preset.decimals;
     withdrawTokenSymbol = preset.symbol;
+    resolvedTokenAddress = ethers.getAddress(preset.address);
     infoEl.textContent = '✓ ' + preset.symbol + ' · ' + preset.decimals + ' decimals';
     document.getElementById('amtLabel').textContent = preset.symbol;
     document.getElementById('withdrawBtn').textContent = 'Withdraw ' + preset.symbol;
@@ -509,6 +1023,7 @@ async function resolveWithdrawToken() {
   if (cached) {
     withdrawTokenDecimals = cached.decimals;
     withdrawTokenSymbol = cached.symbol;
+    resolvedTokenAddress = ethers.getAddress(cached.address);
     infoEl.textContent = '✓ ' + cached.symbol + ' · ' + cached.decimals + ' decimals';
     document.getElementById('amtLabel').textContent = cached.symbol;
     document.getElementById('withdrawBtn').textContent = 'Withdraw ' + cached.symbol;
@@ -520,14 +1035,18 @@ async function resolveWithdrawToken() {
     const rpc = makeRpc();
     const token = new ethers.Contract(addr, ERC20_ABI, rpc);
     const [symR, decR] = await Promise.allSettled([token.symbol(), token.decimals()]);
-    const sym = symR.status === 'fulfilled' ? symR.value : '???';
-    const dec = decR.status === 'fulfilled' ? Number(decR.value) : 18;
+    const sym = normalizeTokenSymbol(symR.status === 'fulfilled' ? symR.value : '', addr.slice(0, 8) + '…');
+    if (decR.status !== 'fulfilled') throw new Error('Could not read token decimals.');
+    const dec = normalizeTokenDecimals(decR.value);
     withdrawTokenDecimals = dec;
     withdrawTokenSymbol = sym;
+    resolvedTokenAddress = ethers.getAddress(addr);
     infoEl.textContent = '✓ ' + sym + ' · ' + dec + ' decimals';
     document.getElementById('amtLabel').textContent = sym;
     document.getElementById('withdrawBtn').textContent = 'Withdraw ' + sym;
   } catch (e) {
+    resolvedTokenAddress = null;
+    withdrawTokenSymbol = '';
     infoEl.textContent = '⚠ Could not resolve — check address and network';
   }
 }
@@ -551,7 +1070,7 @@ async function setMax() {
     // Try cache first
     const cached = checkedTokens.find(t => t.address.toLowerCase() === tokenAddr.toLowerCase());
     if (cached) {
-      document.getElementById('amount').value = parseFloat(cached.formattedBalance).toFixed(Math.min(cached.decimals, 6));
+      document.getElementById('amount').value = cached.formattedBalance;
       return;
     }
 
@@ -563,7 +1082,7 @@ async function setMax() {
       const raw = await token.balanceOf(sa);
       document.getElementById('amount').value = ethers.formatUnits(raw, withdrawTokenDecimals);
     } catch (e) {
-      log('Could not fetch token balance for MAX: ' + e.message, '#f59e0b');
+      log('Could not fetch token balance for MAX: ' + errorMessage(e), '#f59e0b');
     }
   }
 }
@@ -576,8 +1095,18 @@ function addrFromSlot(raw) {
   return addr === ethers.ZeroAddress ? null : addr;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 function diagRow(label, value, cls) {
-  return `<div class="diag-row"><span class="diag-label">${label}</span><span class="diag-val ${cls || ''}">${value}</span></div>`;
+  const safeClass = ['good', 'bad', 'warn'].includes(cls) ? cls : '';
+  return `<div class="diag-row"><span class="diag-label">${escapeHtml(label)}</span><span class="diag-val ${safeClass}">${escapeHtml(value)}</span></div>`;
 }
 
 // ── Account diagnostics ──────────────────────────────────────────────────────
@@ -586,10 +1115,15 @@ async function diagnoseAccount() {
   const net = getNet();
   const sa = document.getElementById('smartAcct').value.trim();
   if (!ethers.isAddress(sa)) { showAlert('balanceAlert', 'alert-error', '❌ Invalid address.'); return; }
+  hideAlert('balanceAlert');
+  diagData = emptyDiagData();
 
   const diagEl = document.getElementById('diagResults');
   diagEl.className = 'diag-results visible';
-  diagEl.innerHTML = '<div style="color:var(--blue)">Running diagnostics…</div>';
+  const diagnosticStatus = document.createElement('div');
+  diagnosticStatus.style.color = 'var(--blue)';
+  diagnosticStatus.textContent = 'Running diagnostics…';
+  diagEl.replaceChildren(diagnosticStatus);
   const btn = document.getElementById('diagBtn');
   btn.disabled = true;
   btn.textContent = 'Diagnosing…';
@@ -755,7 +1289,7 @@ async function diagnoseAccount() {
         html += diagRow('  → module list', 'not found', 'warn');
       }
     } catch (e) {
-      html += diagRow('module lookup', e.message, 'bad');
+      html += diagRow('module lookup', errorMessage(e), 'bad');
     }
 
     html += '<div class="diag-section">E. ACCOUNT CALLS</div>';
@@ -864,13 +1398,13 @@ async function diagnoseAccount() {
     } else {
       html += diagRow('Owner', 'NOT FOUND', 'bad');
       const implLink = diagData.implAddress
-        ? `<a href="https://basescan.org/address/${diagData.implAddress}#code" target="_blank" style="color:#f09090;">${diagData.implAddress}</a>`
+        ? `<a href="${net.explorer.replace('/tx/', '/address/')}${escapeHtml(diagData.implAddress)}#code" target="_blank" rel="noopener noreferrer" style="color:#f09090;">${escapeHtml(diagData.implAddress)}</a>`
         : 'unknown';
       html += `<div style="margin-top:8px; padding:10px; background:rgba(239,68,68,0.06); border-radius:6px; font-size:10px; line-height:1.7; color:#f09090;">
         <strong>Owner not found.</strong><br><br>
         Implementation: ${implLink}<br>
-        Storage addresses: ${storageAddrs.join(', ') || 'none'}<br>
-        EntryPoint: ${entryPoint}
+        Storage addresses: ${escapeHtml(storageAddrs.join(', ') || 'none')}<br>
+        EntryPoint: ${escapeHtml(entryPoint)}
       </div>`;
     }
 
@@ -878,8 +1412,8 @@ async function diagnoseAccount() {
     log('Diagnostics complete', '#4ade80');
 
   } catch (e) {
-    log('Diagnostic error: ' + e.message, '#ef4444');
-    diagEl.innerHTML = html + diagRow('ERROR', e.message, 'bad');
+    log('Diagnostic error: ' + errorMessage(e), '#ef4444');
+    diagEl.innerHTML = html + diagRow('ERROR', errorMessage(e), 'bad');
   }
 
   btn.disabled = false;
@@ -888,26 +1422,65 @@ async function diagnoseAccount() {
 
 // ── Withdraw ─────────────────────────────────────────────────────────────────
 
+function validateBundlerUrl(rawUrl, expectedChainId) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch (_) {
+    throw new Error('Enter a valid bundler RPC URL.');
+  }
+
+  const isLocal = ['localhost', '127.0.0.1'].includes(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !(isLocal && parsed.protocol === 'http:')) {
+    throw new Error('Bundler URLs must use HTTPS (HTTP is allowed only for localhost).');
+  }
+  if (parsed.username || parsed.password) throw new Error('Bundler URLs cannot contain username/password credentials.');
+
+  if (parsed.hostname === 'api.pimlico.io') {
+    const match = parsed.pathname.match(/^\/v[12]\/([^/]+)\/rpc\/?$/);
+    if (!match) throw new Error('Use a complete Pimlico RPC URL from the Pimlico dashboard.');
+    if (/^\d+$/.test(match[1]) && Number(match[1]) !== expectedChainId) {
+      throw new Error('The Pimlico URL is for chain ' + match[1] + ', but ' + getNet().name + ' uses chain ' + expectedChainId + '.');
+    }
+  }
+
+  return parsed.toString();
+}
+
 async function withdraw() {
+  hideAlert('txAlert');
   if (!signer) { showAlert('txAlert', 'alert-error', '❌ Connect a wallet first.'); return; }
 
   const net        = getNet();
   const smartAcct  = document.getElementById('smartAcct').value.trim();
   const dest       = document.getElementById('destAddr').value.trim();
   const amtStr     = document.getElementById('amount').value.trim();
-  const bundlerUrl = document.getElementById('bundlerUrl').value.trim();
+  const bundlerUrlInput = document.getElementById('bundlerUrl').value.trim();
 
   if (!ethers.isAddress(smartAcct)) { showAlert('txAlert', 'alert-error', '❌ Invalid smart account address.'); return; }
   if (!ethers.isAddress(dest))      { showAlert('txAlert', 'alert-error', '❌ Invalid destination address.'); return; }
   if (!amtStr || parseFloat(amtStr) <= 0) { showAlert('txAlert', 'alert-error', '❌ Enter an amount greater than 0.'); return; }
-  if (!bundlerUrl) { showAlert('txAlert', 'alert-error', '❌ Enter a bundler RPC URL.'); return; }
+  if (!bundlerUrlInput) { showAlert('txAlert', 'alert-error', '❌ Enter a bundler RPC URL.'); return; }
+
+  let bundlerUrl;
+  try {
+    bundlerUrl = validateBundlerUrl(bundlerUrlInput, net.chainId);
+  } catch (e) {
+    showAlert('txAlert', 'alert-error', '❌ ' + errorMessage(e));
+    return;
+  }
 
   // ERC-20 specific validation
   let tokenAddr = null;
   if (assetType === 'erc20') {
     tokenAddr = document.getElementById('withdrawTokenAddr').value.trim();
     if (!ethers.isAddress(tokenAddr)) { showAlert('txAlert', 'alert-error', '❌ Enter a valid token contract address.'); return; }
-    if (!withdrawTokenSymbol) { showAlert('txAlert', 'alert-warn', '⚠️ Token not resolved yet. Enter address or pick a preset.'); return; }
+    const normalizedTokenAddress = ethers.getAddress(tokenAddr);
+    if (!withdrawTokenSymbol || !resolvedTokenAddress || normalizedTokenAddress !== resolvedTokenAddress) {
+      showAlert('txAlert', 'alert-warn', '⚠️ Token not resolved yet. Enter the address again or pick a preset.');
+      return;
+    }
+    tokenAddr = normalizedTokenAddress;
   }
 
   const btn = document.getElementById('withdrawBtn');
@@ -915,19 +1488,21 @@ async function withdraw() {
   btn.innerHTML = '<span class="spinner"></span>Preparing…';
   const rpcProvider = makeRpc();
 
-  function getBundlerUrl() {
-    return bundlerUrl.includes('pimlico.io') ? bundlerUrl.replace('/v2/', '/v1/') : bundlerUrl;
-  }
-
   async function bundlerRpc(method, params) {
-    const url = getBundlerUrl();
     log('RPC → ' + method);
-    const res = await fetch(url, {
+    const res = await fetch(bundlerUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
     });
-    const json = await res.json();
+    const responseText = await res.text();
+    let json;
+    try {
+      json = JSON.parse(responseText);
+    } catch (_) {
+      throw new Error('Bundler returned an invalid response (HTTP ' + res.status + ').');
+    }
+    if (!res.ok) throw new Error(json.message || json.error?.message || 'Bundler request failed (HTTP ' + res.status + ').');
     if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
     return json.result;
   }
@@ -957,10 +1532,11 @@ async function withdraw() {
     // Build callData based on asset type
     const executeIface = new ethers.Interface(['function execute(address dest, uint256 value, bytes calldata func)']);
     let callData;
+    let nativeTransferAmount = 0n;
 
     if (assetType === 'native') {
-      const amountWei = ethers.parseEther(amtStr);
-      callData = executeIface.encodeFunctionData('execute', [dest, amountWei, '0x']);
+      nativeTransferAmount = ethers.parseEther(amtStr);
+      callData = executeIface.encodeFunctionData('execute', [dest, nativeTransferAmount, '0x']);
       log('Native transfer: ' + amtStr + ' ' + net.nativeSymbol + ' → ' + dest);
     } else {
       const amountRaw = ethers.parseUnits(amtStr, withdrawTokenDecimals);
@@ -970,8 +1546,19 @@ async function withdraw() {
       log('ERC-20 transfer: ' + amtStr + ' ' + withdrawTokenSymbol + ' → ' + dest);
     }
 
-    const maxFeePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.parseUnits('1', 'gwei');
-    const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? ethers.parseUnits('1', 'gwei');
+    let maxFeePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.parseUnits('1', 'gwei');
+    let maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? ethers.parseUnits('1', 'gwei');
+    try {
+      const prices = await bundlerRpc('pimlico_getUserOperationGasPrice', []);
+      const tier = prices?.fast || prices?.standard || prices?.slow;
+      if (tier?.maxFeePerGas && tier?.maxPriorityFeePerGas) {
+        maxFeePerGas = BigInt(tier.maxFeePerGas);
+        maxPriorityFeePerGas = BigInt(tier.maxPriorityFeePerGas);
+        log('Using bundler gas prices', '#4ade80');
+      }
+    } catch (e) {
+      log('Bundler gas price unavailable; using network fee data: ' + errorMessage(e), '#f59e0b');
+    }
 
     let success = false;
     let userOpHashResult = null;
@@ -1023,8 +1610,9 @@ async function withdraw() {
       if (est.verificationGasLimit) userOp.verificationGasLimit = est.verificationGasLimit;
       if (est.preVerificationGas)   userOp.preVerificationGas   = est.preVerificationGas;
     } catch (e) {
-      log('Gas estimate failed: ' + e.message.slice(0, 120), '#f59e0b');
-      if (e.message.includes('AA21') || e.message.includes('prefund')) {
+      const message = errorMessage(e);
+      log('Gas estimate failed: ' + message.slice(0, 120), '#f59e0b');
+      if (message.includes('AA21') || message.includes('prefund')) {
         const requiredPrefund = 350_000n * maxFeePerGas;
         throw new Error(
           'Not enough ' + net.nativeSymbol + ' for gas (AA21). ' +
@@ -1041,12 +1629,14 @@ async function withdraw() {
     // Verify the account can actually pay the prefund before signing
     const totalGasUnits = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas);
     const requiredPrefund = totalGasUnits * maxFeePerGas;
-    if (ethBal < requiredPrefund) {
-      const shortfall = parseFloat(ethers.formatEther(requiredPrefund - ethBal)).toFixed(6);
+    const requiredNativeBalance = requiredPrefund + nativeTransferAmount;
+    if (ethBal < requiredNativeBalance) {
+      const shortfall = ethers.formatEther(requiredNativeBalance - ethBal);
       throw new Error(
         'Not enough ' + net.nativeSymbol + ' for gas. ' +
         'Have ' + parseFloat(ethers.formatEther(ethBal)).toFixed(6) + ', ' +
-        'need ' + parseFloat(ethers.formatEther(requiredPrefund)).toFixed(6) + ' ' + net.nativeSymbol + '. ' +
+        'need ' + parseFloat(ethers.formatEther(requiredNativeBalance)).toFixed(6) + ' ' + net.nativeSymbol +
+        (nativeTransferAmount > 0n ? ' including the transfer amount. ' : '. ') +
         'Send ' + shortfall + ' more ' + net.nativeSymbol + ' to the smart account.'
       );
     }
@@ -1081,12 +1671,13 @@ async function withdraw() {
         success = true;
       } catch (e) {
         lastError = e;
-        log('✗ ' + e.message.slice(0, 140), '#6b7280');
+        const message = errorMessage(e);
+        log('✗ ' + message.slice(0, 140), '#6b7280');
 
         // AA21 = not enough ETH for gas — retrying with a different signature won't help
-        if (e.message.includes('AA21')) break;
+        if (message.includes('AA21')) break;
 
-        if (e.message.includes('AA23') || e.message.includes('signature')) {
+        if (message.includes('AA23') || message.includes('signature')) {
           for (const altModule of KNOWN_BICONOMY_MODULES) {
             if (success || altModule === ecdsaModule) continue;
             userOp.signature = abiC2.encode(['bytes', 'address'], [sv.moduleSignature, altModule]);
@@ -1097,7 +1688,7 @@ async function withdraw() {
               success = true;
             } catch (e2) {
               lastError = e2;
-              log('✗ ' + e2.message.slice(0, 100), '#6b7280');
+              log('✗ ' + errorMessage(e2).slice(0, 100), '#6b7280');
             }
           }
         }
@@ -1105,12 +1696,12 @@ async function withdraw() {
     }
 
     if (!success) {
-      const msg = lastError?.message || '';
+      const msg = errorMessage(lastError);
       if (msg.includes('AA21') || msg.includes('prefund')) {
         throw new Error(
-          'Not enough ETH for gas (AA21). The smart account only has ' +
+          'Not enough ' + net.nativeSymbol + ' for gas (AA21). The smart account only has ' +
           (nativeBalance ? parseFloat(ethers.formatEther(nativeBalance)).toFixed(6) : '0') +
-          ' ETH — send at least 0.001 ETH to it and try again.'
+          ' ' + net.nativeSymbol + ' — add native gas funds and try again.'
         );
       }
       if (msg.includes('AA25') || msg.includes('nonce')) {
@@ -1137,6 +1728,7 @@ async function withdraw() {
     if (!receipt) throw new Error('Timed out waiting for receipt.');
 
     const txHash = receipt.receipt?.transactionHash || receipt.transactionHash;
+    if (!ethers.isHexString(txHash, 32)) throw new Error('Bundler receipt did not contain a valid transaction hash.');
     log('✓ Confirmed: ' + txHash, '#4ade80');
     document.getElementById('s3num').className = 'step-num done';
     document.getElementById('s3num').textContent = '✓';
@@ -1154,11 +1746,11 @@ async function withdraw() {
     refreshAfterWithdraw(smartAcct, assetType, tokenAddr);
 
   } catch (e) {
-    log('Error: ' + e.message, '#ef4444');
+    log('Error: ' + errorMessage(e), '#ef4444');
     btn.disabled = false;
     const withdrawLabel = assetType === 'native' ? net.nativeSymbol : (withdrawTokenSymbol || 'Token');
     btn.textContent = 'Withdraw ' + withdrawLabel;
-    showAlert('txAlert', 'alert-error', '❌ ' + e.message);
+    showAlert('txAlert', 'alert-error', '❌ ' + errorMessage(e));
   }
 }
 
@@ -1217,5 +1809,70 @@ async function refreshAfterWithdraw(sa, withdrawnAssetType, withdrawnTokenAddr) 
   log('Balances refreshed', '#4ade80');
 }
 
-// Initialise withdraw presets on load
-renderWithdrawPresets();
+function bindUi() {
+  if (window.top !== window.self) {
+    document.body.replaceChildren();
+    const warning = document.createElement('p');
+    warning.textContent = 'For security, open this recovery tool directly rather than inside another page.';
+    document.body.appendChild(warning);
+    return;
+  }
+
+  document.getElementById('connectMetaMaskBtn').addEventListener('click', connectMetaMask);
+  document.getElementById('requestMetaMaskAccountsBtn').addEventListener('click', requestMetaMaskAccountPermissions);
+  document.getElementById('loadKeyBtn').addEventListener('click', loadKey);
+  document.getElementById('changeWalletBtn').addEventListener('click', changeWallet);
+  if (window.ethereum?.on) {
+    window.ethereum.on('accountsChanged', handleMetaMaskAccountsChanged);
+  }
+  document.getElementById('privKey').addEventListener('keydown', event => {
+    if (event.key === 'Enter') loadKey();
+  });
+  document.getElementById('privKey').addEventListener('input', () => hideAlert('connectAlert'));
+  document.getElementById('retryDiscoveryBtn').addEventListener('click', discoverSmartAccounts);
+  document.querySelectorAll('.net-btn').forEach(button => {
+    button.addEventListener('click', () => selectNetwork(button));
+  });
+  document.getElementById('smartAcct').addEventListener('input', () => {
+    hideAlert('balanceAlert');
+    balanceScanRunId++;
+    scanInProgress = false;
+    const manualAddress = document.getElementById('smartAcct').value.trim();
+    document.getElementById('checkBalBtn').disabled = !ethers.isAddress(manualAddress);
+    document.querySelectorAll('.account-option').forEach(button => button.classList.remove('selected'));
+    if (manualAddress) {
+      setDiscoveryStatus(
+        ethers.isAddress(manualAddress) ? '' : 'warn',
+        ethers.isAddress(manualAddress)
+          ? 'Manual account entered. We will verify that it belongs to your exported wallet before scanning.'
+          : 'Enter a complete smart account address to continue.',
+      );
+    }
+    nativeBalance = null;
+    checkedTokens = [];
+    diagData = emptyDiagData();
+    document.getElementById('balanceWrap').style.display = 'none';
+    document.getElementById('assetList').replaceChildren();
+    document.getElementById('diagResults').className = 'diag-results';
+    document.getElementById('withdrawBtn').disabled = true;
+    showAlert('txAlert', 'alert-warn', '⚠️ Find the funds for this smart account before withdrawing.');
+  });
+  document.getElementById('checkBalBtn').addEventListener('click', checkBalance);
+  document.getElementById('diagBtn').addEventListener('click', diagnoseAccount);
+  document.getElementById('checkCustomTokenBtn').addEventListener('click', checkCustomToken);
+  document.getElementById('customTokenAddr').addEventListener('input', () => hideAlert('balanceAlert'));
+  document.getElementById('clearLogBtn').addEventListener('click', () => {
+    document.getElementById('debugLog').replaceChildren();
+  });
+  document.getElementById('assetBtnNative').addEventListener('click', () => selectAssetType('native'));
+  document.getElementById('assetBtnErc20').addEventListener('click', () => selectAssetType('erc20'));
+  ['bundlerUrl', 'destAddr', 'withdrawTokenAddr', 'amount'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => hideAlert('txAlert'));
+  });
+  document.getElementById('withdrawTokenAddr').addEventListener('input', scheduleTokenResolve);
+  document.getElementById('maxBtn').addEventListener('click', setMax);
+  document.getElementById('withdrawBtn').addEventListener('click', withdraw);
+  renderWithdrawPresets();
+}
+
+bindUi();
