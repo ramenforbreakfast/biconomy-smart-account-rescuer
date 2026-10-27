@@ -1460,15 +1460,17 @@ async function withdraw() {
   if (!ethers.isAddress(smartAcct)) { showAlert('txAlert', 'alert-error', '❌ Invalid smart account address.'); return; }
   if (!ethers.isAddress(dest))      { showAlert('txAlert', 'alert-error', '❌ Invalid destination address.'); return; }
   if (!amtStr || parseFloat(amtStr) <= 0) { showAlert('txAlert', 'alert-error', '❌ Enter an amount greater than 0.'); return; }
-  if (!bundlerUrlInput) { showAlert('txAlert', 'alert-error', '❌ Enter a bundler RPC URL.'); return; }
-
-  let bundlerUrl;
-  try {
-    bundlerUrl = validateBundlerUrl(bundlerUrlInput, net.chainId);
-  } catch (e) {
-    showAlert('txAlert', 'alert-error', '❌ ' + errorMessage(e));
-    return;
+  const usingHostedBundler = !bundlerUrlInput;
+  let bundlerUrl = '/api/bundler?chainId=' + encodeURIComponent(net.chainId);
+  if (!usingHostedBundler) {
+    try {
+      bundlerUrl = validateBundlerUrl(bundlerUrlInput, net.chainId);
+    } catch (e) {
+      showAlert('txAlert', 'alert-error', '❌ ' + errorMessage(e));
+      return;
+    }
   }
+  log('Bundler: ' + (usingHostedBundler ? 'hosted service' : 'custom endpoint'));
 
   // ERC-20 specific validation
   let tokenAddr = null;
@@ -1500,7 +1502,11 @@ async function withdraw() {
     try {
       json = JSON.parse(responseText);
     } catch (_) {
-      throw new Error('Bundler returned an invalid response (HTTP ' + res.status + ').');
+      throw new Error(
+        usingHostedBundler
+          ? 'Hosted bundler is unavailable. If you are running a local copy, enter a custom Pimlico RPC URL.'
+          : 'Bundler returned an invalid response (HTTP ' + res.status + ').'
+      );
     }
     if (!res.ok) throw new Error(json.message || json.error?.message || 'Bundler request failed (HTTP ' + res.status + ').');
     if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));

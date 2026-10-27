@@ -12,7 +12,7 @@ When an app shuts down, **you lose access to the smart account** — the app's i
 
 - The private key of the EOA that owns the smart account, **or** MetaMask with that wallet imported
 - A small amount of native token (ETH, POL, etc.) in the **smart account** to pay for gas (~0.0005 ETH minimum)
-- A free [Pimlico](https://dashboard.pimlico.io) bundler API key
+- On the hosted Vercel deployment, no bundler setup is required. A local static copy requires a custom [Pimlico](https://dashboard.pimlico.io) bundler URL.
 
 > **Note:** The smart account itself pays for gas — not the EOA. If the smart account has no native token, send a small amount to it before withdrawing.
 
@@ -32,16 +32,19 @@ You can deploy the static folder to a host you control, but anyone using the pri
 
 #### Host on Vercel (optional)
 
-This repository is a plain static site and does not need a build step, server, environment variables, or Netlify. After pushing it to GitHub:
+The interface is static, with one Vercel Function that proxies the narrowly permitted Pimlico bundler methods without exposing the Pimlico key to browsers. After pushing it to GitHub:
 
 1. In Vercel, choose **Add New → Project** and import the repository.
 2. Set **Framework Preset** to **Other**.
 3. Leave the root directory at the repository root and leave the build and output settings empty.
-4. Deploy.
+4. Under **Settings → Environment Variables**, add `PIMLICO_API_KEY`, select **Secret**, paste only the Pimlico API key, and enable it for Production. Enable Preview too if preview deployments should support withdrawals.
+5. Deploy or redeploy after saving the secret.
 
-The included `vercel.json` applies the same Content Security Policy as the page, prevents framing, and adds other browser security headers. You can also deploy the repository root with the Vercel CLI by running `vercel --prod`.
+Do not put the key or full keyed Pimlico URL in `app.js`, `index.html`, `vercel.json`, or a committed `.env` file. The included `vercel.json` applies the same Content Security Policy as the page, prevents framing, and adds other browser security headers. You can also deploy the repository root with the Vercel CLI by running `vercel --prod`.
 
-Use a Vercel project and domain that users can clearly identify as yours. A hosted version is convenient for MetaMask, but private-key users must trust your Vercel account, domain, and every deployed revision. Keep recommending a verified local copy for the private-key fallback, and never put a private key or bundler API key in Vercel environment variables or source code.
+The hosted endpoint permits only the four bundler methods used by this recovery flow, only on supported networks, and rejects sponsored, account-deployment, oversized, and general-purpose RPC requests. In the Vercel dashboard, also configure a WAF rate-limit rule for path `/api/bundler`; a reasonable starting point is 150 requests per source per 10 minutes, followed by monitoring and adjustment. Provider-side project quotas remain the final cost ceiling.
+
+Use a Vercel project and domain that users can clearly identify as yours. A hosted version is convenient for MetaMask, but private-key users must trust your Vercel account, domain, and every deployed revision. Keep recommending a verified local copy for the private-key fallback. User private keys must never be placed in Vercel environment variables or source code.
 
 ### 2. Connect your wallet
 
@@ -74,7 +77,7 @@ Open **Having trouble? Advanced troubleshooting** only if discovery cannot find 
 
 Click **Withdraw →** on any asset in the balance list to auto-fill the withdrawal form, or fill it manually:
 
-- **Bundler RPC URL** — your Pimlico API key URL. Get a free key at [dashboard.pimlico.io](https://dashboard.pimlico.io). Example for Base: `https://api.pimlico.io/v2/8453/rpc?apikey=YOUR_KEY`
+- **Custom Bundler RPC URL** — optional on the hosted app. Leave it blank to use the hosted bundler. Advanced users and local-static-copy users can provide their own complete Pimlico URL, such as `https://api.pimlico.io/v2/8453/rpc?apikey=YOUR_KEY`.
 - **Destination wallet** — defaults to the exported wallet; replace it if the funds should go somewhere else
 - **Asset type** — Native (ETH/POL/etc.) or ERC-20 Token
 - **Token contract** — if ERC-20, paste the token address or pick from the quick presets
@@ -104,10 +107,11 @@ Any other ERC-20 can be recovered by pasting its contract address into the custo
 
 ## Security notes
 
-- This tool runs entirely in your browser. Public addresses and blockchain requests are sent to the configured public RPC and bundler endpoints. Private keys are not included in those requests.
+- Wallet operations and signing run in your browser. Public addresses and blockchain requests are sent to the configured public RPC endpoints. When using the hosted bundler, signed UserOperations pass through the Vercel Function to Pimlico; private keys are never included.
 - Prefer MetaMask. If you must use the private-key fallback, use a verified local copy on a trusted machine. Keys are held in memory only for the session, are not stored or logged, and the input is cleared after loading.
 - Runtime JavaScript is served locally. Ethers.js 6.17.0 is vendored under `vendor/`; the page does not load executable code from a CDN.
-- A Content Security Policy blocks remote scripts and inline event handlers. Bundler URLs must use HTTPS, except for localhost development.
+- A Content Security Policy blocks remote scripts and inline event handlers. Custom bundler URLs must use HTTPS, except for localhost development.
+- The hosted Pimlico key is read only by the Vercel Function from the `PIMLICO_API_KEY` secret. The function does not log request bodies or return the key to browsers.
 - Each supported network has multiple public RPC endpoints so a single provider outage does not block recovery.
 - Always verify the destination address before clicking Withdraw.
 - The source code is plain HTML, CSS, and JavaScript — inspect it before use.
